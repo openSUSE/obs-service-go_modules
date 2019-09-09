@@ -20,7 +20,8 @@ go mod download
 go mod verify
 go mod vendor
 
-obs-service-go_modules will create vendor.tar.gz containing the
+obs-service-go_modules will create a vendor tarball, compressed with
+the specified method (default to "gz"), containing the
 vendor/ directory populated by go mod vendor.
 
 See README.md for additional documentation.
@@ -38,12 +39,13 @@ from subprocess import check_output
 from subprocess import CalledProcessError
 
 app_name = "obs-service-go_modules"
-vendor_tarname = "vendor.tar.gz"
 
 description = __doc__
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(app_name)
+
+DEFAULT_COMPRESSION = "gz"
 
 parser = argparse.ArgumentParser(
     description=description, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -51,14 +53,30 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--strategy", default="vendor")
 parser.add_argument("--archive")
 parser.add_argument("--outdir")
+parser.add_argument("--compression")
 args = parser.parse_args()
 
 outdir = args.outdir
 
 
+def get_archive_extension():
+    if args.compression not in tarfile.TarFile.OPEN_METH:
+        log.error(f"The specified compression mode is not supported: \"{args.compression}\"")
+        exit(1)
+    
+    if args.compression == "tar":
+        return  "tar"
+
+    return "tar." + (args.compression or DEFAULT_COMPRESSION)
+
+
+archive_ext = get_archive_extension()
+vendor_tarname = f"vendor.{archive_ext}"
+
+
 def archive_autodetect():
     """ Find the most likely candidate file that contains go.mod and go.sum.
-        For most go applications this will be app-x.y.z.tar.gz.
+        For most Go applications this will be app-x.y.z.tar[.<tar compression>].
         Use the name of the .spec file as the stem for the archive to detect.
         Archive formats supported:
         - .tar.gz
@@ -74,7 +92,7 @@ def archive_autodetect():
         spec_dir = spec.parent  # typically the same as cwd
         spec_stem = spec.stem  # stem is app in app.spec
         # highest sorted archive under spec_dir
-        pattern = f"{spec.stem}*.tar.gz"
+        pattern = f"{spec.stem}*.{archive_ext}"
         archive = next(reversed(sorted(Path(spec_dir).glob(pattern))), None)
     if not archive:
         log.error(f"Archive autodetection found no matching archive under {cwd}")
@@ -103,11 +121,11 @@ def archive_autodetect():
 archive = args.archive or archive_autodetect()
 log.info(f"Using archive {archive}")
 
-basename = archive.replace(".tar.gz", "")  # currently only .tar.gz supported
+basename = archive.replace(f".{archive_ext}", "")
 
 
 def extract(filename, dir):
-    if filename.endswith(".tar.gz"):
+    if filename.endswith(f".{archive_ext}"):
         tar = tarfile.open(filename)
         tar.extractall(path=dir)
         tar.close()
@@ -159,7 +177,7 @@ def main():
         log.info(f"Vendor go.mod dependencies to {vendor_tarname}")
         vendor_tarfile = os.path.join(outdir, vendor_tarname)
         vendor_dir = os.path.join(go_mod_dir, "vendor")
-        with tarfile.open(vendor_tarfile, "w:gz") as tar:
+        with tarfile.open(vendor_tarfile, "w:" + args.compression) as tar:
             tar.add(vendor_dir, arcname=("vendor"))
 
         # remove extracted Go application source

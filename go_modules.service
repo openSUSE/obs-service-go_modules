@@ -3,12 +3,15 @@
   <description>This service extracts a Go application source,
   reads the files go.mod and go.sum,
   downloads and verifies Go module dependencies,
-  and creates a vendor.tar.gz to be committed allowing fully offline
+  and creates a vendor.tar[.<tar compression>] to be committed allowing fully offline
   builds of Go applications.</description>
   <parameter name="strategy">
     <description>Choose the strategy this service runs in. Values: vendor. Default: vendor</description>
   </parameter>
   <parameter name="archive">
     <description>Specify the Go application source archive that contains go.mod and go.sum. Values: app-x.y.z.tar.gz. Default: None, will use autodetection</description>
+  </parameter>
+  <parameter name="compression">
+    <description>Specify the source / vendor tarballs compression method. When using "tar" no compression is applied. Default: "gz".</description>
   </parameter>
 </service>

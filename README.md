@@ -18,19 +18,20 @@ go mod verify
 go mod vendor
 ```
 
-`obs-service-go_modules` will create `vendor.tar.gz` containing the
-`vendor/` directory populated by `go mod vendor`. `vendor.tar.gz`
-is generated in the rpm package directory. `vendor.tar.gz` can be
-committed to [OBS](https://build.opensuse.org) to facilitate
-offline Go application package builds for
-[openSUSE](https://www.opensuse.org),
+`obs-service-go_modules` will create a `vendor.tar[.<tar compression>]` archive
+containing the `vendor/` directory populated by `go mod vendor`. The archive
+is generated in the rpm package directory, and can be committed to
+[OBS](https://build.opensuse.org) to facilitate offline Go application package builds
+for [openSUSE](https://www.opensuse.org),
 [SUSE](https://www.suse.com), and numerous other distributions.
 
 ## Usage for packagers
 
-Presently it is assumed the Go application is distributed as
-a tarball `app-0.1.0.tar.gz` unpacking to `app-0.1.0/`.
-`obs-service-go_modules` will autodetect tarball archives of the form `app-0.1.0.tar.gz`,
+Presently it is assumed the Go application is distributed as a tarball named
+`app-0.1.0.tar[.<tar compression>]`, unpacking to `app-0.1.0/`.
+The `<tar compression>` extension can be specified using the `compression` parameter,
+and defaults to `gz`.
+`obs-service-go_modules` will autodetect tarball archives of the form `app-0.1.0.tar[.<tar compression>]`,
 where the RPM packaging uses spec file `app.spec`.
 
 Create a `_service` file containing:
@@ -155,7 +156,7 @@ Persistent state for changelog generation is stored in `_servicedata`.
 ## Transition note
 
 Until such time as `obs-service-go_modules` is available on
-[OBS](https://build.opensuse.org), `vendor.tar.gz` should
+[OBS](https://build.opensuse.org), `vendor.tar[.<tar compression>]` should
 be committed along with the Go application release tarball.
 
 ## openSUSE RPM packages built using `obs-service-go_modules`
@@ -168,11 +169,11 @@ be committed along with the Go application release tarball.
 
 ## FAQ
 
-### Q: Does `vendor.tar.gz` need to be committed to OBS package?
+### Q: Does `vendor.tar[.<tar compression>]` need to be committed to OBS package?
 
 A: Currently yes.
 As long as  `obs-service-go_modules` is run locally via `osc service disabledrun`,
-then `vendor.tar.gz` should be committed and referenced as an additional `Source:`.
+then `vendor.tar[.<tar compression>]` should be committed and referenced as an additional `Source:`.
 If and when `obs-service-go_modules` is available on
 [OBS](https://build.opensuse.org),
 additional strategies should be possible such as a `vendor.cpio`
