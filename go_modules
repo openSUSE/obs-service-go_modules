@@ -146,12 +146,11 @@ def cmd_go_mod(cmd, dir):
         output = check_output(["go", "mod", cmd], cwd=dir).decode("utf-8").strip()
         if output:
             log.info(output)
-        return True
     except CalledProcessError as e:
         error = e.output.decode("utf-8").strip()
         if error:
             log.info(error)
-        return False
+        raise
 
 
 def main():
