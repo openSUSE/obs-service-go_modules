@@ -90,9 +90,9 @@ def archive_autodetect():
         exit(1)
     else:
         spec_dir = spec.parent  # typically the same as cwd
-        spec_stem = spec.stem  # stem is app in app.spec
+        spec_stem = spec.stem.split(":")[-1] # stem is app in app.spec
         # highest sorted archive under spec_dir
-        pattern = f"{spec.stem}*.{archive_ext}"
+        pattern = f"*{spec_stem}*.{archive_ext}"
         archive = next(reversed(sorted(Path(spec_dir).glob(pattern))), None)
     if not archive:
         log.error(f"Archive autodetection found no matching archive under {cwd}")
