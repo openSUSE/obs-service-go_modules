@@ -59,6 +59,12 @@ Run `osc` command locally:
 osc service disabledrun
 ```
 
+In case you previously ran the command, there might be a git clone of the app repository. To avoid errors, remove this directory before calling the `osc service disabledrun` command:
+
+```
+rm -rf app; osc service disabledrun
+```
+
 See [Example](#example) below for typical output with a complete `_service` file.
 
 ## Building Go applications with vendored dependency modules
