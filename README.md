@@ -45,6 +45,14 @@ Create a `_service` file containing:
 
 The archive name can alternatively be specified using service parameter `archive`.
 
+```
+<services>
+  <service name="go_modules" mode="disabled">
+  <param name="archive">app-0.1.0.tar.xz</param>
+  </service>
+</services>
+
+```
 Run `osc` command locally:
 
 ```
