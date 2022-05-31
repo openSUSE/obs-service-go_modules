@@ -30,7 +30,7 @@ See README.md for additional documentation.
 import logging
 import argparse
 import re
-import tarfile
+import libarchive
 import os
 import shutil
 
@@ -42,36 +42,46 @@ app_name = "obs-service-go_modules"
 
 description = __doc__
 
-logging.basicConfig(level=logging.DEBUG)
-log = logging.getLogger(app_name)
-
 DEFAULT_COMPRESSION = "gz"
 
-parser = argparse.ArgumentParser(
-    description=description, formatter_class=argparse.RawDescriptionHelpFormatter
-)
-parser.add_argument("--strategy", default="vendor")
-parser.add_argument("--archive")
-parser.add_argument("--outdir")
-parser.add_argument("--compression", default=DEFAULT_COMPRESSION)
-args = parser.parse_args()
 
-outdir = args.outdir
+def get_archive_parameters(args):
+    archive_format = None
+    archive_compression = None
+    archive_extension = None
+
+    if args.compression == "obscpio" and "cpio" in libarchive.ffi.READ_FORMATS:
+        archive_format = 'cpio_newc'
+        archive_compression = None
+        archive_extension = args.compression
+
+    elif args.compression == "tar" and "tar" in libarchive.ffi.READ_FORMATS:
+        archive_format = 'gnutar'
+        archive_compression = None
+        archive_extension = args.compression
+
+    else:
+        compression_format = args.compression
+
+        if args.compression == "gz":
+            compression_format = "gzip"
+
+        elif args.compression == "zst":
+            compression_format = "zstd"
+
+        if compression_format not in libarchive.ffi.READ_FILTERS:
+            log.error(f"The specified compression mode is not supported: \"{args.compression}\"")
+            exit(1)
+
+        archive_format = 'gnutar'
+        archive_compression = compression_format
+        archive_extension = "tar." + (args.compression)
+
+    return archive_format, archive_compression, archive_extension
 
 
-def get_archive_extension():
-    if args.compression not in tarfile.TarFile.OPEN_METH:
-        log.error(f"The specified compression mode is not supported: \"{args.compression}\"")
-        exit(1)
-    
-    if args.compression == "tar":
-        return  "tar"
-
-    return "tar." + (args.compression)
-
-
-archive_ext = get_archive_extension()
-vendor_tarname = f"vendor.{archive_ext}"
+def basename_from_archive_name(archive_name):
+    return re.sub('^(?P<service_prefix>_service:[^:]+:)?(?P<basename>.*)\.(?P<extension>obscpio|tar\.[^\.]+)$', r'\g<basename>', archive_name)
 
 
 def archive_autodetect():
@@ -89,50 +99,64 @@ def archive_autodetect():
         log.error(f"Archive autodetection found no spec file under {cwd}")
         exit(1)
     else:
+        archive = None
         spec_dir = spec.parent  # typically the same as cwd
         spec_stem = spec.stem  # stem is app in app.spec
         # highest sorted archive under spec_dir
-        pattern = f"{spec.stem}*.{archive_ext}"
-        archive = next(reversed(sorted(Path(spec_dir).glob(pattern))), None)
+        patterns = [
+            f"{spec.stem}*.tar.*",
+            f"{spec.stem}*.obscpio",
+            f"_service:*:{spec.stem}*tar.*",
+            f"_service:*:{spec.stem}*obscpio",
+        ]
+        for pattern in patterns:
+            log.debug(f"Trying to find archive name with pattern {pattern}")
+            archive = next(reversed(sorted(Path(spec_dir).glob(pattern))), None)
+
+            if archive:
+                break
+
     if not archive:
-        log.error(f"Archive autodetection found no matching archive under {cwd}")
-        exit(1)
-    else:
-        log.info(f"Archive autodetected at {archive}")
-        # Check that app.spec Version: directive value
-        # is a substring of detected archive filename
-        # Warn if there is disagreement between the versions.
-        pattern = re.compile(r"^Version:\s+([\S]+)$", re.IGNORECASE)
-        with spec.open(encoding="utf-8") as f:
-            for line in f:
-                versionmatch = pattern.match(line)
-                if versionmatch:
-                    version = versionmatch.groups(0)[0]
-            if not version:
-                log.warning(f"Version not found in {spec.name}")
-            else:
-                if not (version in archive.name):
-                    log.warning(
-                        f"Version {version} in {spec.name} does not match {archive.name}"
-                    )
-        return str(archive.name)  # return string not PosixPath
-
-
-archive = args.archive or archive_autodetect()
-log.info(f"Using archive {archive}")
-
-basename = archive.replace(f".{archive_ext}", "")
-
-
-def extract(filename, dir):
-    if filename.endswith(f".{archive_ext}"):
-        tar = tarfile.open(filename)
-        tar.extractall(path=dir)
-        tar.close()
-    else:
-        log.info(f"Unsupported archive file format for {filename}")
+        log.error(f"Archive autodetection found no matching archive")
         exit(1)
 
+    log.info(f"Archive autodetected at {archive}")
+    # Check that app.spec Version: directive value
+    # is a substring of detected archive filename
+    # Warn if there is disagreement between the versions.
+    pattern = re.compile(r"^Version:\s+([\S]+)$", re.IGNORECASE)
+    with spec.open(encoding="utf-8") as f:
+        for line in f:
+            versionmatch = pattern.match(line)
+            if versionmatch:
+                version = versionmatch.groups(0)[0]
+        if not version:
+            log.warning(f"Version not found in {spec.name}")
+        else:
+            if not (version in archive.name):
+                log.warning(
+                    f"Version {version} in {spec.name} does not match {archive.name}"
+                )
+    return str(archive.name)  # return string not PosixPath
+
+
+def extract(filename, outdir):
+    log.info(f"Extracting {filename} to {outdir}")
+
+    cwd =  os.getcwd()
+
+    # make path absolute so we can switch away from the current working directory
+    filename = os.path.join(cwd, filename)
+
+    log.info(f"Switching to {outdir}")
+    os.chdir(outdir)
+
+    try:
+        libarchive.extract_file(filename)
+    except libarchive.exception.ArchiveError as archive_error:
+        log.error(archive_error)
+
+    os.chdir(cwd)
 
 def find_file(path, filename):
     for root, dirs, files in os.walk(path):
@@ -156,7 +180,23 @@ def cmd_go_mod(cmd, dir):
 def main():
     log.info(f"Running OBS Source Service: {app_name}")
 
-    log.info(f"Extracting {archive} to {outdir}")
+    parser = argparse.ArgumentParser(
+        description=description, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("--strategy", default="vendor")
+    parser.add_argument("--archive")
+    parser.add_argument("--outdir")
+    parser.add_argument("--compression", default=DEFAULT_COMPRESSION)
+    args = parser.parse_args()
+
+    outdir = args.outdir
+
+    archive_format, archive_compression, archive_ext = get_archive_parameters(args)
+    vendor_tarname = f"vendor.{archive_ext}"
+    archive = args.archive or archive_autodetect()
+    log.info(f"Using archive {archive}")
+
+    basename = basename_from_archive_name(archive)
     extract(archive, outdir)
 
     go_mod_path = find_file(outdir, "go.mod")
@@ -175,17 +215,24 @@ def main():
 
         log.info(f"Vendor go.mod dependencies to {vendor_tarname}")
         vendor_tarfile = os.path.join(outdir, vendor_tarname)
-        vendor_dir = os.path.join(go_mod_dir, "vendor")
-        with tarfile.open(vendor_tarfile, "w:" + args.compression) as tar:
-            tar.add(vendor_dir, arcname=("vendor"))
+        cwd =  os.getcwd()
+        os.chdir(go_mod_dir)
+        vendor_dir = "vendor"
+
+        with libarchive.file_writer(vendor_tarfile, archive_format, archive_compression ) as new_archive:
+            new_archive.add_files(vendor_dir)
+        os.chdir(cwd)
 
         # remove extracted Go application source
         try:
             to_remove = os.path.join(outdir, basename)
+            log.info(f"Cleaning up working dir {to_remove}")
             shutil.rmtree(to_remove)
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             log.error(f"Could not remove directory not found {to_remove}")
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    log = logging.getLogger(app_name)
     main()
