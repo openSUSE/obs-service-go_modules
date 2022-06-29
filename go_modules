@@ -182,12 +182,6 @@ def extract(filename, outdir):
     os.chdir(cwd)
 
 
-def find_file(path, filename):
-    for root, dirs, files in os.walk(path):
-        if filename in files:
-            return os.path.join(root, filename)
-
-
 def cmd_go_mod(cmd, dir):
     """Execute go mod subcommand using subprocess.run().
     Capture both stderr and stdout as text.
@@ -201,6 +195,12 @@ def cmd_go_mod(cmd, dir):
         log.error(cp.stderr.strip())
     return cp
 
+def sanitize_subdir(dir, subdir):
+    ret = os.path.normpath(subdir)
+    if dir == os.path.commonpath([dir, ret]):
+        return ret
+    log.error("Invalid path: {ret} not subdir of {dir}")
+    exit (1)
 
 def main():
     log.info(f"Running OBS Source Service: {app_name}")
@@ -213,9 +213,11 @@ def main():
     parser.add_argument("--outdir")
     parser.add_argument("--compression", default=DEFAULT_COMPRESSION)
     parser.add_argument("--basename")
+    parser.add_argument("--subdir")
     args = parser.parse_args()
 
     outdir = args.outdir
+    subdir = args.subdir
 
     archive_format, archive_compression, archive_ext = get_archive_parameters(args)
     vendor_tarname = f"vendor.{archive_ext}"
@@ -224,10 +226,10 @@ def main():
 
     with tempfile.TemporaryDirectory() as tempdir:
         extract(archive, tempdir)
-        basename = args.basename or basename_from_archive(archive) or basename_from_archive_name(archive)
 
-        go_mod_path = find_file(os.path.join(tempdir, basename), "go.mod")
-        if go_mod_path:
+        basename = args.basename or basename_from_archive(archive) or basename_from_archive_name(archive)
+        go_mod_path = sanitize_subdir(tempdir, os.path.join(tempdir, basename, subdir, "go.mod"))
+        if go_mod_path and os.path.exists(go_mod_path):
             go_mod_dir = os.path.dirname(go_mod_path)
             log.info(f"Using go.mod found at {go_mod_path}")
         else:

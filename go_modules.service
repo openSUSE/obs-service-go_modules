@@ -16,5 +16,7 @@
   </parameter>
   <parameter name="basename">
     <description>Normally the go_modules service is able to determine the name of the top directory. Should this not be possible for some reason, use this option to specify.</description>
+  <parameter name="subdir">
+    <description>If go.mod is not available in the top directory of the archive, specify its path (relative to the top directory).</description>
   </parameter>
 </service>
