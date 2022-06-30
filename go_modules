@@ -33,6 +33,7 @@ import re
 import libarchive
 import os
 import shutil
+import sys
 import tempfile
 
 from pathlib import Path
@@ -190,7 +191,10 @@ def cmd_go_mod(cmd, dir):
     """
     log.info(f"go mod {cmd}")
     # subprocess.run() returns CompletedProcess cp
-    cp = run(["go", "mod", cmd], cwd=dir, capture_output=True, text=True)
+    if sys.version_info >= (3, 7):
+        cp = run(["go", "mod", cmd], cwd=dir, capture_output=True, text=True)
+    else:
+        cp = run(["go", "mod", cmd], cwd=dir)
     if cp.returncode:
         log.error(cp.stderr.strip())
     return cp
