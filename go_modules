@@ -82,12 +82,27 @@ def get_archive_parameters(args):
 
 
 def basename_from_archive_name(archive_name):
-    return re.sub(
+    basename = re.sub(
         "^(?P<service_prefix>_service:[^:]+:)?(?P<basename>.*)\.(?P<extension>obscpio|tar\.[^\.]+)$",
         r"\g<basename>",
         archive_name,
     )
+    if basename:
+        log.info(f"Detected basename {basename} form archive name")
+    return basename
 
+def basename_from_archive(archive_name):
+    paths = []
+    with libarchive.file_reader(archive_name) as archive:
+        for entry in archive:
+            if (entry.isdir):
+                paths.append(entry.name)
+        try:
+            basename = os.path.commonpath(paths)
+        except  ValueError:
+            return
+    log.info(f"Detected basename {basename} from archive")
+    return basename
 
 def archive_autodetect():
     """Find the most likely candidate file that contains go.mod and go.sum.
@@ -205,10 +220,10 @@ def main():
     archive = args.archive or archive_autodetect()
     log.info(f"Using archive {archive}")
 
-    basename = basename_from_archive_name(archive)
+    basename = basename_from_archive(archive) or basename_from_archive_name(archive)
     extract(archive, outdir)
 
-    go_mod_path = find_file(outdir, "go.mod")
+    go_mod_path = find_file(os.path.join(outdir,basename), "go.mod")
     if go_mod_path:
         go_mod_dir = os.path.dirname(go_mod_path)
         log.info(f"Using go.mod found at {go_mod_path}")
