@@ -33,6 +33,7 @@ import re
 import libarchive
 import os
 import shutil
+import tempfile
 
 from pathlib import Path
 from subprocess import run
@@ -221,69 +222,62 @@ def main():
     archive = args.archive or archive_autodetect()
     log.info(f"Using archive {archive}")
 
-    extract(archive, outdir)
-    basename = args.basename or basename_from_archive(archive) or basename_from_archive_name(archive)
+    with tempfile.TemporaryDirectory() as tempdir:
+        extract(archive, tempdir)
+        basename = args.basename or basename_from_archive(archive) or basename_from_archive_name(archive)
 
-    go_mod_path = find_file(os.path.join(outdir,basename), "go.mod")
-    if go_mod_path:
-        go_mod_dir = os.path.dirname(go_mod_path)
-        log.info(f"Using go.mod found at {go_mod_path}")
-    else:
-        log.error(f"File go.mod not found under {outdir}")
-        exit(1)
+        go_mod_path = find_file(os.path.join(tempdir, basename), "go.mod")
+        if go_mod_path:
+            go_mod_dir = os.path.dirname(go_mod_path)
+            log.info(f"Using go.mod found at {go_mod_path}")
+        else:
+            log.error(f"File go.mod not found under {os.path.join(tempdir, basename)}")
+            exit(1)
 
-    if args.strategy == "vendor":
-        # go subcommand sequence:
-        # - go mod download
-        #   (is sensitive to invalid module versions, try and log warn if fails)
-        # - go mod vendor
-        #   (also downloads but use separate steps for visibility in OBS environment)
-        # - go mod verify
-        #   (validates checksums)
+        if args.strategy == "vendor":
+            # go subcommand sequence:
+            # - go mod download
+            #   (is sensitive to invalid module versions, try and log warn if fails)
+            # - go mod vendor
+            #   (also downloads but use separate steps for visibility in OBS environment)
+            # - go mod verify
+            #   (validates checksums)
 
-        # return value cp is type subprocess.CompletedProcess
-        cp = cmd_go_mod("download", go_mod_dir)
-        if cp.returncode:
-            if "invalid version" in cp.stderr:
-                log.warning(
-                    f"go mod download is more sensitive to invalid module versions than go mod vendor"
-                )
-                log.warning(
-                    f"if go mod vendor and go mod verify complete, vendoring is successful"
-                )
-            else:
-                log.error("go mod download failed")
+            # return value cp is type subprocess.CompletedProcess
+            cp = cmd_go_mod("download", go_mod_dir)
+            if cp.returncode:
+                if "invalid version" in cp.stderr:
+                    log.warning(
+                        f"go mod download is more sensitive to invalid module versions than go mod vendor"
+                    )
+                    log.warning(
+                        f"if go mod vendor and go mod verify complete, vendoring is successful"
+                    )
+                else:
+                    log.error("go mod download failed")
+                    exit(1)
+
+            cp = cmd_go_mod("vendor", go_mod_dir)
+            if cp.returncode:
+                log.error("go mod vendor failed")
                 exit(1)
 
-        cp = cmd_go_mod("vendor", go_mod_dir)
-        if cp.returncode:
-            log.error("go mod vendor failed")
-            exit(1)
+            cp = cmd_go_mod("verify", go_mod_dir)
+            if cp.returncode:
+                log.error("go mod verify failed")
+                exit(1)
 
-        cp = cmd_go_mod("verify", go_mod_dir)
-        if cp.returncode:
-            log.error("go mod verify failed")
-            exit(1)
+            log.info(f"Vendor go.mod dependencies to {vendor_tarname}")
+            vendor_tarfile = os.path.join(outdir, vendor_tarname)
+            cwd = os.getcwd()
+            os.chdir(go_mod_dir)
+            vendor_dir = "vendor"
 
-        log.info(f"Vendor go.mod dependencies to {vendor_tarname}")
-        vendor_tarfile = os.path.join(outdir, vendor_tarname)
-        cwd = os.getcwd()
-        os.chdir(go_mod_dir)
-        vendor_dir = "vendor"
-
-        with libarchive.file_writer(
-            vendor_tarfile, archive_format, archive_compression
-        ) as new_archive:
-            new_archive.add_files(vendor_dir)
-        os.chdir(cwd)
-
-        # remove extracted Go application source
-        try:
-            to_remove = os.path.join(outdir, basename)
-            log.info(f"Cleaning up working dir {to_remove}")
-            shutil.rmtree(to_remove)
-        except FileNotFoundError:
-            log.error(f"Could not remove directory not found {to_remove}")
+            with libarchive.file_writer(
+                    vendor_tarfile, archive_format, archive_compression
+            ) as new_archive:
+                new_archive.add_files(vendor_dir)
+            os.chdir(cwd)
 
 
 if __name__ == "__main__":
