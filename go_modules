@@ -211,6 +211,7 @@ def main():
     parser.add_argument("--archive")
     parser.add_argument("--outdir")
     parser.add_argument("--compression", default=DEFAULT_COMPRESSION)
+    parser.add_argument("--basename")
     args = parser.parse_args()
 
     outdir = args.outdir
@@ -220,8 +221,8 @@ def main():
     archive = args.archive or archive_autodetect()
     log.info(f"Using archive {archive}")
 
-    basename = basename_from_archive(archive) or basename_from_archive_name(archive)
     extract(archive, outdir)
+    basename = args.basename or basename_from_archive(archive) or basename_from_archive_name(archive)
 
     go_mod_path = find_file(os.path.join(outdir,basename), "go.mod")
     if go_mod_path:

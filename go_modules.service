@@ -14,4 +14,7 @@
   <parameter name="compression">
     <description>Specify the source / vendor tarballs compression method. When using "tar" no compression is applied. Default: "gz".</description>
   </parameter>
+  <parameter name="basename">
+    <description>Normally the go_modules service is able to determine the name of the top directory. Should this not be possible for some reason, use this option to specify.</description>
+  </parameter>
 </service>
