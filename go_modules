@@ -179,6 +179,7 @@ def extract(filename, outdir):
         libarchive.extract_file(filename)
     except libarchive.exception.ArchiveError as archive_error:
         log.error(archive_error)
+        exit(1)
 
     os.chdir(cwd)
 
