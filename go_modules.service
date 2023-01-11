@@ -14,4 +14,10 @@
   <parameter name="compression">
     <description>Specify the source / vendor tarballs compression method. When using "tar" no compression is applied. Default: "gz".</description>
   </parameter>
+  <parameter name="goproxy">
+    <description>Specify the golang proxy to be used. Default: None.</description>
+  </parameter>
+  <parameter name="goprivate">
+    <description>Specify the repos authenticated via goproxy. Same sytntax as "GONOSUMDB" Default: None.</description>
+  </parameter>
 </service>
