@@ -227,6 +227,7 @@ def main():
         # - go mod verify
         #   (validates checksums)
 
+        os.environ['GOMODCACHE'] = '/tmp/go_modules/cache'
         if args.goproxy:
             os.environ['GOPROXY'] = args.goproxy
         if args.goprivate:
