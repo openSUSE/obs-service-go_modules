@@ -30,12 +30,13 @@ See README.md for additional documentation.
 import logging
 import argparse
 import re
-import libarchive
 import os
 import shutil
-
+import sys
 from pathlib import Path
 from subprocess import run
+
+import libarchive
 
 app_name = "obs-service-go_modules"
 
@@ -72,7 +73,7 @@ def get_archive_parameters(args):
             log.error(
                 f'The specified compression mode is not supported: "{args.compression}"'
             )
-            exit(1)
+            sys.exit(1)
 
         archive_format = "gnutar"
         archive_compression = compression_format
@@ -102,19 +103,22 @@ def archive_autodetect():
     cwd = Path.cwd()
     # first .spec under cwd or None
     spec = next(reversed(sorted(Path(cwd).glob("*.spec"))), None)
-    if not spec:
-        log.error(f"Archive autodetection found no spec file under {cwd}")
-        exit(1)
+    dsc = next(reversed(sorted(Path(cwd).glob("*.dsc"))), None)
+    if not spec and not dsc:
+        log.error(f"Archive autodetection found no spec or dsc file under {cwd}")
+        sys.exit(1)
     else:
+        pkgfile = spec if spec else dsc
+
         archive = None
-        spec_dir = spec.parent  # typically the same as cwd
-        spec_stem = spec.stem  # stem is app in app.spec
+        spec_dir = pkgfile.parent  # typically the same as cwd
+        spec_stem = pkgfile.stem  # stem is app in app.spec
         # highest sorted archive under spec_dir
         patterns = [
-            f"{spec.stem}*.tar.*",
-            f"{spec.stem}*.obscpio",
-            f"_service:*:{spec.stem}*tar.*",
-            f"_service:*:{spec.stem}*obscpio",
+            f"{spec_stem}*.tar.*",
+            f"{spec_stem}*.obscpio",
+            f"_service:*:{spec_stem}*tar.*",
+            f"_service:*:{spec_stem}*obscpio",
         ]
         for pattern in patterns:
             log.debug(f"Trying to find archive name with pattern {pattern}")
@@ -125,14 +129,14 @@ def archive_autodetect():
 
     if not archive:
         log.error(f"Archive autodetection found no matching archive")
-        exit(1)
+        sys.exit(1)
 
     log.info(f"Archive autodetected at {archive}")
     # Check that app.spec Version: directive value
     # is a substring of detected archive filename
     # Warn if there is disagreement between the versions.
     pattern = re.compile(r"^Version:\s+([\S]+)$", re.IGNORECASE)
-    with spec.open(encoding="utf-8") as f:
+    with pkgfile.open(encoding="utf-8") as f:
         for line in f:
             versionmatch = pattern.match(line)
             if versionmatch:
@@ -142,7 +146,7 @@ def archive_autodetect():
         else:
             if not (version in archive.name):
                 log.warning(
-                    f"Version {version} in {spec.name} does not match {archive.name}"
+                    f"Version {version} in {pkgfile.name} does not match {archive.name}"
                 )
     return str(archive.name)  # return string not PosixPath
 
@@ -162,17 +166,19 @@ def extract(filename, outdir):
         libarchive.extract_file(filename)
     except libarchive.exception.ArchiveError as archive_error:
         log.error(archive_error)
+        sys.exit(1)
 
     os.chdir(cwd)
 
 
 def find_file(path, filename):
-    for root, dirs, files in os.walk(path):
+    for root, _, files in os.walk(path):
         if filename in files:
             return os.path.join(root, filename)
+    return None
 
 
-def cmd_go_mod(cmd, dir):
+def cmd_go_mod(cmd, gdir):
     """Execute go mod subcommand using subprocess.run().
     Capture both stderr and stdout as text.
     Log as info or error in this function body.
@@ -180,7 +186,8 @@ def cmd_go_mod(cmd, dir):
     """
     log.info(f"go mod {cmd}")
     # subprocess.run() returns CompletedProcess cp
-    cp = run(["go", "mod", cmd], cwd=dir, capture_output=True, text=True)
+    cp = run(["go", "mod", cmd], cwd=gdir, capture_output=True, text=True)
+    log.debug(cp.stdout.strip())
     if cp.returncode:
         log.error(cp.stderr.strip())
     return cp
@@ -204,6 +211,8 @@ def main():
 
     archive_format, archive_compression, archive_ext = get_archive_parameters(args)
     vendor_tarname = f"vendor.{archive_ext}"
+    basename = None
+
     archive = args.archive or archive_autodetect()
     log.info(f"Using archive {archive}")
 
@@ -216,7 +225,7 @@ def main():
         log.info(f"Using go.mod found at {go_mod_path}")
     else:
         log.error(f"File go.mod not found under {outdir}")
-        exit(1)
+        sys.exit(1)
 
     if args.strategy == "vendor":
         # go subcommand sequence:
@@ -227,7 +236,7 @@ def main():
         # - go mod verify
         #   (validates checksums)
 
-        os.environ['GOMODCACHE'] = '/tmp/go_modules/cache'
+        os.environ['GOMODCACHE'] = '/srv/obs/service/gomodcache'
         if args.goproxy:
             os.environ['GOPROXY'] = args.goproxy
         if args.goprivate:
@@ -238,24 +247,24 @@ def main():
         if cp.returncode:
             if "invalid version" in cp.stderr:
                 log.warning(
-                    f"go mod download is more sensitive to invalid module versions than go mod vendor"
+                    "go mod download is more sensitive to invalid module versions than go mod vendor"
                 )
                 log.warning(
-                    f"if go mod vendor and go mod verify complete, vendoring is successful"
+                    "if go mod vendor and go mod verify complete, vendoring is successful"
                 )
             else:
                 log.error("go mod download failed")
-                exit(1)
+                sys.exit(1)
 
         cp = cmd_go_mod("vendor", go_mod_dir)
         if cp.returncode:
             log.error("go mod vendor failed")
-            exit(1)
+            sys.exit(1)
 
         cp = cmd_go_mod("verify", go_mod_dir)
         if cp.returncode:
             log.error("go mod verify failed")
-            exit(1)
+            sys.exit(1)
 
         log.info(f"Vendor go.mod dependencies to {vendor_tarname}")
         vendor_tarfile = os.path.join(outdir, vendor_tarname)
@@ -271,14 +280,15 @@ def main():
 
         # remove extracted Go application source
         try:
-            to_remove = os.path.join(outdir, basename)
-            log.info(f"Cleaning up working dir {to_remove}")
-            shutil.rmtree(to_remove)
+            if basename:
+                to_remove = os.path.join(outdir, basename)
+                log.info(f"Cleaning up working dir {to_remove}")
+                shutil.rmtree(to_remove)
         except FileNotFoundError:
             log.error(f"Could not remove directory not found {to_remove}")
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     log = logging.getLogger(app_name)
     main()
