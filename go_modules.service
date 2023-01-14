@@ -3,7 +3,7 @@
   <description>This service extracts a Go application source,
   reads the files go.mod and go.sum,
   downloads and verifies Go module dependencies,
-  and creates a vendor.tar[.<tar compression>] to be committed allowing fully offline
+  and creates a vendor.tar[.&lt;tar compression&gt;] to be committed allowing fully offline
   builds of Go applications.</description>
   <parameter name="strategy">
     <description>Choose the strategy this service runs in. Values: vendor. Default: vendor</description>
