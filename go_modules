@@ -33,8 +33,9 @@ import re
 import os
 import shutil
 import sys
-from pathlib import Path
-from subprocess import run
+from pathlib import Path, PosixPath
+from subprocess import run, CompletedProcess
+from typing import Dict, Optional
 
 import libarchive
 
@@ -44,7 +45,7 @@ DESCRIPTION = __doc__
 DEFAULT_COMPRESSION = "gz"
 
 
-def _get_output_archive_parameters(compression):
+def _get_output_archive_parameters(compression) -> Dict[str, str]:
     archive_format = None
     archive_compression = None
     archive_extension = None
@@ -81,15 +82,15 @@ def _get_output_archive_parameters(compression):
     return {'format': archive_format, 'compression': archive_compression, 'ext': archive_extension}
 
 
-def _basename_from_archive_name(archive_name):
+def _basename_from_archive_name(archive_name) -> str:
     return re.sub(
-        r"^(?P<service_prefix>_service:[^:]+:)?(?P<basename>.*)\.(?P<extension>obscpio|tar\.[^\.]+)$",
+        r"^(?P<service_prefix>_service:[^:]+:)?(?P<basename>.*)\.(?P<extension>obscpio|tar\.[^\.]+)$", # pylint: disable=line-too-long
         r"\g<basename>",
         archive_name,
     )
 
 
-def _source_archive_autodetect():
+def _source_archive_autodetect() -> str:
     """Find the most likely candidate file that contains go.mod and go.sum.
     For most Go applications this will be app-x.y.z.tar.gz or other supported compression.
     Use the name of the .spec or .dsc file as the stem for the archive to detect.
@@ -155,7 +156,7 @@ def _source_archive_autodetect():
     return str(archive.name)  # return string not PosixPath
 
 
-def _extract(filename, outdir):
+def _extract(filename, outdir) -> None:
     log.info("Extracting %s to %s", filename, outdir)
 
     cwd = Path.cwd()
@@ -175,13 +176,13 @@ def _extract(filename, outdir):
         os.chdir(cwd)
 
 
-def _find_file(path, filename):
+def _find_file(path, filename) -> Optional[PosixPath]:
     for file in path.rglob(filename):
         return file
     return None
 
 
-def _cmd_go_mod(cmd, gdir):
+def _cmd_go_mod(cmd, gdir) -> CompletedProcess:
     """Execute go mod subcommand using subprocess.run().
     Capture both stderr and stdout as text.
     Log as info or error in this function body.
@@ -195,7 +196,8 @@ def _cmd_go_mod(cmd, gdir):
         log.error(pres.stderr.strip())
     return pres
 
-def _get_gomoddir(outdir):
+
+def _get_gomoddir(outdir) -> PosixPath:
     go_mod_path = _find_file(outdir, "go.mod")
     if go_mod_path:
         log.info("Using go.mod found at %s", go_mod_path)
@@ -205,7 +207,7 @@ def _get_gomoddir(outdir):
     sys.exit(1)
 
 
-def _create_vendor_archive(args, go_mod_dir, outdir, output_spec):
+def _create_vendor_archive(args, go_mod_dir, outdir, output_spec) -> None:
     # go subcommand sequence:
     # - go mod download
     #   (is sensitive to invalid module versions, try and log warn if fails)
@@ -259,7 +261,7 @@ def _create_vendor_archive(args, go_mod_dir, outdir, output_spec):
     os.chdir(cwd)
 
 
-def _main():
+def _main() -> None:
     log.info("Running OBS Source Service: %s", APP_NAME)
 
     parser = argparse.ArgumentParser(
@@ -297,7 +299,6 @@ def _main():
             shutil.rmtree(to_remove)
     except FileNotFoundError:
         log.error("Could not remove directory not found %s", to_remove)
-
 
 
 if __name__ == "__main__":
