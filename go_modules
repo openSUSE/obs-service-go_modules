@@ -255,7 +255,7 @@ def _create_vendor_archive(args, go_mod_dir, outdir, output_spec) -> None:
     os.chdir(go_mod_dir)
 
     with libarchive.file_writer(
-        vendor_tarfile.as_posix(), output_spec['format'], output_spec['compression']
+            vendor_tarfile.as_posix(), output_spec['format'], output_spec['compression']
     ) as new_archive:
         new_archive.add_files(vendor_dir)
     os.chdir(cwd)
@@ -303,5 +303,5 @@ def _main() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    log = logging.getLogger(APP_NAME)
+    log = logging.getLogger(APP_NAME) # pylint: disable=invalid-name
     _main()
