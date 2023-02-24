@@ -233,7 +233,10 @@ def main():
         extract(archive, tempdir)
 
         basename = args.basename or basename_from_archive(archive) or basename_from_archive_name(archive)
-        go_mod_path = sanitize_subdir(tempdir, os.path.join(tempdir, basename, subdir, "go.mod"))
+        if subdir:
+            go_mod_path = sanitize_subdir(tempdir, os.path.join(tempdir, basename, subdir, "go.mod"))
+        else:
+            go_mod_path = sanitize_subdir(tempdir, os.path.join(tempdir, basename, "go.mod"))
         if go_mod_path and os.path.exists(go_mod_path):
             go_mod_dir = os.path.dirname(go_mod_path)
             log.info(f"Using go.mod found at {go_mod_path}")
