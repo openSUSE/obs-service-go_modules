@@ -1,10 +1,14 @@
 <service name="go_modules">
   <summary>OBS Source Service to download, verify and vendor Go module dependency sources</summary>
-  <description>This service extracts a Go application source,
+  <description>
+  <![CDATA[
+  This service extracts a Go application source,
   reads the files go.mod and go.sum,
   downloads and verifies Go module dependencies,
   and creates a vendor.tar[.<tar compression>] to be committed allowing fully offline
-  builds of Go applications.</description>
+  builds of Go applications.
+  ]]>
+  </description>
   <parameter name="strategy">
     <description>Choose the strategy this service runs in. Values: vendor. Default: vendor</description>
   </parameter>
@@ -16,6 +20,7 @@
   </parameter>
   <parameter name="basename">
     <description>Normally the go_modules service is able to determine the name of the top directory. Should this not be possible for some reason, use this option to specify.</description>
+  </parameter>
   <parameter name="subdir">
     <description>If go.mod is not available in the top directory of the archive, specify its path (relative to the top directory).</description>
   </parameter>
