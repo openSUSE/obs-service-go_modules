@@ -43,6 +43,7 @@ app_name = "obs-service-go_modules"
 description = __doc__
 
 DEFAULT_COMPRESSION = "gz"
+DEFAULT_VENDOR_FILENAME = "vendor.tar"
 
 
 def get_archive_parameters(args):
@@ -79,8 +80,9 @@ def get_archive_parameters(args):
         archive_format = "gnutar"
         archive_compression = compression_format
         archive_extension = "tar." + (args.compression)
+        vendor_filename = args.vendorfilename
 
-    return archive_format, archive_compression, archive_extension
+    return archive_format, archive_compression, archive_extension, vendor_filename
 
 
 def basename_from_archive_name(archive_name):
@@ -227,14 +229,17 @@ def main():
     parser.add_argument("--outdir")
     parser.add_argument("--compression", default=DEFAULT_COMPRESSION)
     parser.add_argument("--basename")
+    parser.add_argument("--vendorfilename", default=DEFAULT_VENDOR_FILENAME)
     parser.add_argument("--subdir")
     args = parser.parse_args()
 
     outdir = args.outdir
     subdir = args.subdir
 
-    archive_format, archive_compression, archive_ext = get_archive_parameters(args)
-    vendor_tarname = f"vendor.{archive_ext}"
+    archive_format, archive_compression, archive_ext, vendor_filename = get_archive_parameters(
+        args
+    )
+    vendor_tarname = f"{vendor_filename}.{archive_ext}"
     archive = args.archive or archive_autodetect()
     log.info(f"Using archive {archive}")
 
