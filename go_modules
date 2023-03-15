@@ -71,7 +71,8 @@ def get_archive_parameters(args):
 
         if compression_format not in libarchive.ffi.READ_FILTERS:
             log.error(
-                f'The specified compression mode is not supported: "{args.compression}"'
+                'The specified compression mode is not supported:' +
+                f'"{args.compression}"'
             )
             exit(1)
 
@@ -109,14 +110,17 @@ def basename_from_archive(archive_name):
 
 def archive_autodetect():
     """Find the most likely candidate file that contains go.mod and go.sum.
-    For most Go applications this will be app-x.y.z.tar.gz or other supported compression.
+    For most Go applications this will be app-x.y.z.tar.gz or other supported
+    compression.
     Use the name of the .spec file as the stem for the archive to detect.
     Archive formats supported:
     - .tar.gz
     - .tar.xz
     - .tar.zstd
     """
-    log.info("Autodetecting archive since no archive param provided in _service")
+    log.info(
+        "Autodetecting archive since no archive param provided in _service"
+    )
     cwd = Path.cwd()
     # first .spec under cwd or None
     spec = next(reversed(sorted(Path(cwd).glob("*.spec"))), None)
@@ -135,7 +139,9 @@ def archive_autodetect():
         ]
         for pattern in patterns:
             log.debug(f"Trying to find archive name with pattern {pattern}")
-            archive = next(reversed(sorted(Path(spec_dir).glob(pattern))), None)
+            archive = next(
+                reversed(sorted(Path(spec_dir).glob(pattern))), None
+            )
 
             if archive:
                 break
@@ -159,7 +165,8 @@ def archive_autodetect():
         else:
             if not (version in archive.name):
                 log.warning(
-                    f"Version {version} in {spec.name} does not match {archive.name}"
+                    f"Version {version} in {spec.name} " +
+                    f"does not match {archive.name}"
                 )
     return str(archive.name)  # return string not PosixPath
 
@@ -169,7 +176,8 @@ def extract(filename, outdir):
 
     cwd = os.getcwd()
 
-    # make path absolute so we can switch away from the current working directory
+    # make path absolute so we can switch away from the
+    # current working directory
     filename = os.path.join(cwd, filename)
 
     log.info(f"Switching to {outdir}")
@@ -213,7 +221,8 @@ def main():
     log.info(f"Running OBS Source Service: {app_name}")
 
     parser = argparse.ArgumentParser(
-        description=description, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=description,
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--strategy", default="vendor")
     parser.add_argument("--archive")
@@ -226,7 +235,9 @@ def main():
     outdir = args.outdir
     subdir = args.subdir
 
-    archive_format, archive_compression, archive_ext = get_archive_parameters(args)
+    archive_format, archive_compression, archive_ext = get_archive_parameters(
+        args
+    )
     vendor_tarname = f"vendor.{archive_ext}"
     archive = args.archive or archive_autodetect()
     log.info(f"Using archive {archive}")
@@ -251,15 +262,20 @@ def main():
             go_mod_dir = os.path.dirname(go_mod_path)
             log.info(f"Using go.mod found at {go_mod_path}")
         else:
-            log.error(f"File go.mod not found under {os.path.join(tempdir, basename)}")
+            log.error(
+                "File go.mod not found under " +
+                f"{os.path.join(tempdir, basename)}"
+            )
             exit(1)
 
         if args.strategy == "vendor":
             # go subcommand sequence:
             # - go mod download
-            #   (is sensitive to invalid module versions, try and log warn if fails)
+            #   (is sensitive to invalid module versions,
+            #   try and log warn if fails)
             # - go mod vendor
-            #   (also downloads but use separate steps for visibility in OBS environment)
+            #   (also downloads but use separate steps for visibility in
+            #   OBS environment)
             # - go mod verify
             #   (validates checksums)
 
@@ -268,10 +284,12 @@ def main():
             if cp.returncode:
                 if "invalid version" in cp.stderr:
                     log.warning(
-                        "go mod download is more sensitive to invalid module versions than go mod vendor"
+                        "go mod download is more sensitive to invalid " +
+                        "module versions than go mod vendor"
                     )
                     log.warning(
-                        "if go mod vendor and go mod verify complete, vendoring is successful"
+                        "if go mod vendor and go mod verify complete, " +
+                        "vendoring is successful"
                     )
                 else:
                     log.error("go mod download failed")
