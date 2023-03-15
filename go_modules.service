@@ -16,4 +16,7 @@
   <parameter name="subdir">
     <description>If go.mod is not available in the top directory of the archive, specify its path (relative to the top directory). Default: None.</description>
   </parameter>
+  <parameter name="vendorfilename">
+    <description>Specify the filename for the generated vendor tarball. Default: vendor</description>
+  </parameter>
 </service>
