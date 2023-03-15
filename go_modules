@@ -126,7 +126,6 @@ def archive_autodetect():
     else:
         archive = None
         spec_dir = spec.parent  # typically the same as cwd
-        spec_stem = spec.stem  # stem is app in app.spec
         # highest sorted archive under spec_dir
         patterns = [
             f"{spec.stem}*.tar.*",
