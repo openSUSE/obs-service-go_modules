@@ -116,7 +116,7 @@ def archive_autodetect():
     - .tar.xz
     - .tar.zstd
     """
-    log.info(f"Autodetecting archive since no archive param provided in _service")
+    log.info("Autodetecting archive since no archive param provided in _service")
     cwd = Path.cwd()
     # first .spec under cwd or None
     spec = next(reversed(sorted(Path(cwd).glob("*.spec"))), None)
@@ -141,7 +141,7 @@ def archive_autodetect():
                 break
 
     if not archive:
-        log.error(f"Archive autodetection found no matching archive")
+        log.error("Archive autodetection found no matching archive")
         exit(1)
 
     log.info(f"Archive autodetected at {archive}")
@@ -268,10 +268,10 @@ def main():
             if cp.returncode:
                 if "invalid version" in cp.stderr:
                     log.warning(
-                        f"go mod download is more sensitive to invalid module versions than go mod vendor"
+                        "go mod download is more sensitive to invalid module versions than go mod vendor"
                     )
                     log.warning(
-                        f"if go mod vendor and go mod verify complete, vendoring is successful"
+                        "if go mod vendor and go mod verify complete, vendoring is successful"
                     )
                 else:
                     log.error("go mod download failed")
