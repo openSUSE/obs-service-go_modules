@@ -85,7 +85,7 @@ def get_archive_parameters(args):
 
 def basename_from_archive_name(archive_name):
     basename = re.sub(
-        "^(?P<service_prefix>_service:[^:]+:)?(?P<basename>.*)\.(?P<extension>obscpio|tar\.[^\.]+)$",  # noqa: E501
+        r"^(?P<service_prefix>_service:[^:]+:)?(?P<basename>.*)\.(?P<extension>obscpio|tar\.[^\.]+)$",  # noqa: E501
         r"\g<basename>",
         archive_name,
     )
