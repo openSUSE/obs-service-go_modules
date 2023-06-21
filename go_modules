@@ -227,7 +227,14 @@ def main():
 
     archive_args = get_archive_parameters(args)
     vendor_tarname = f"{archive_args['vendorname']}.{archive_args['ext']}"
-    archive = args.archive or archive_autodetect()
+    if args.archive:
+        archive_matches = sorted(Path.cwd().glob(args.archive), reverse=True)
+        if not archive_matches:
+            log.error(f"No archive file matches {Path.cwd()}/{args.archive}")
+            exit(1)
+        archive = str(archive_matches[0])  # use string, not PosixPath
+    else:
+        archive = archive_autodetect()
     log.info(f"Using archive {archive}")
 
     with tempfile.TemporaryDirectory() as tempdir:
