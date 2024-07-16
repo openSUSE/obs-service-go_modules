@@ -87,7 +87,7 @@ def basename_from_archive_name(archive_name):
         archive_name,
     )
     if basename:
-        log.info(f"Detected basename {basename} form archive name")
+        log.info(f"Detected basename {basename} from archive name")
     return basename
 
 
