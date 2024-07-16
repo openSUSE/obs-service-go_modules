@@ -87,7 +87,7 @@ def basename_from_archive_name(archive_name):
         archive_name,
     )
     if basename:
-        log.info(f"Detected basename {basename} form archive name")
+        log.info(f"Detected basename {basename} from archive name")
     return basename
 
 
@@ -95,7 +95,7 @@ def basename_from_archive(archive_name):
     paths = []
     with libarchive.file_reader(archive_name) as archive:
         for entry in archive:
-            if entry.isdir:
+            if entry.isdir and ".git" not in entry.pathname:
                 paths.append(entry.name)
         try:
             basename = os.path.commonpath(paths)
