@@ -174,7 +174,7 @@ def extract(filename, outdir):
     os.chdir(outdir)
 
     try:
-        libarchive.extract_file(filename)
+        libarchive.extract_file(filename, libarchive.extract.EXTRACT_TIME)
     except libarchive.exception.ArchiveError as archive_error:
         log.error(archive_error)
         exit(1)
@@ -299,16 +299,21 @@ def main():
             os.chdir(go_mod_dir)
             vendor_dir = "vendor"
 
-            kwargs = {}
+            mtime = os.path.getmtime(go_mod_path)
+            log.debug(f"Set archive files times to {mtime}")
+
+            options = []
+            if archive_args["compression"] == "gzip":
+                options.append("!timestamp")
             if archive_args["level"]:
-                kwargs["options"] = f"compression-level={archive_args['level']}"
+                options.append(f"compression-level={archive_args['level']}")
             with libarchive.file_writer(
                 vendor_tarfile,
                 archive_args["format"],
                 archive_args["compression"],
-                **kwargs,
+                options=",".join(options),
             ) as new_archive:
-                new_archive.add_files(vendor_dir)
+                new_archive.add_files(vendor_dir, mtime=mtime, ctime=mtime, atime=mtime)
             os.chdir(cwd)
 
 
