@@ -57,7 +57,7 @@ Create a `_service` file containing:
 
 ```
 <services>
-  <service name="go_modules" mode="disabled">
+  <service name="go_modules" mode="localonly">
   </service>
 </services>
 ```
@@ -75,7 +75,7 @@ The archive name can alternatively be specified using service parameter `archive
 Run `osc` command locally:
 
 ```
-osc service disabledrun
+osc service localrun
 ```
 
 In case you previously ran the command, there might be a git clone of the app repository. To avoid errors, remove this directory before calling the `osc service disabledrun` command:
@@ -121,9 +121,9 @@ Decompression timings are closely matched among `gz`, `xz`, and `zstd` compressi
 OBS Source Services can run in one of several modes as shown in
 [OBS Documentation: Using Source Services: Modes of Services](https://openbuildservice.org/help/manuals/obs-user-guide/cha.obs.source_service.html#sec.obs.sserv.mode).
 
-Currently the recommended mode is `disabled` (aliased as `manual`) which implies:
+Currently the recommended mode is `localonly` which implies:
 
-- The service is run locally via explicit CLI call `osc service disabledrun`
+- The service is run locally via explicit CLI call `osc service localrun`
 
 - `obs-service-go_modules` and its dependencies
   `python3`, `libarchive` and `python3-libarchive-c`
@@ -165,47 +165,42 @@ More information about additional controls is available at:
 
 Using the [hugo](https://github.com/gohugoio) static site generator as
 an example of a Go application with a large number of Go module
-dependencies, `obs-service-go_modules` produces `vendor.tar.gz`:
+dependencies, `obs-service-go_modules` produces `vendor.tar.gz`
+(obs_scm creates _servicedata, hugo-${VERSION}.obscpio and hugo-obsinfo):
 
 ```
 $ ls -1
-hugo-0.57.2.tar.gz
 hugo.changes
 hugo.spec
 _service
-_servicedata
 
-$ osc service disabledrun
+$ osc service localrun
+Cloning into '/data/packages/home:trenn:branches:devel:languages:go/hugo/hugo'...
+Updating files: 100% (1990/1990), done.
+e32a493b7826d02763c3b79623952e625402b168
+merge: origin/v0.110.0 - not something we can merge
+Already up to date.
+e32a493b7826d02763c3b79623952e625402b168
+INFO:obs-service-go_modules:Running OBS Source Service: obs-service-go_modules
 INFO:obs-service-go_modules:Autodetecting archive since no archive param provided in _service
-INFO:obs-service-go_modules:Archive autodetected at /path/to/prj/pkg/hugo-0.57.2.tar.gz
-INFO:obs-service-go_modules:Using archive hugo-0.57.2.tar.gz
-INFO:obs-service-go_modules:Extracting hugo-0.57.2.tar.gz to /path/to/tmpdir
-INFO:obs-service-go_modules:Using go.mod found at /path/to/tmpdir/hugo-0.57.2/go.mod
+DEBUG:obs-service-go_modules:Trying to find archive name with pattern hugo*.tar.*
+DEBUG:obs-service-go_modules:Trying to find archive name with pattern hugo*.obscpio
+INFO:obs-service-go_modules:Archive autodetected at /data/packages/home:trenn:branches:devel:languages:go/hugo/hugo-0.110.0.obscpio
+INFO:obs-service-go_modules:Using archive hugo-0.110.0.obscpio
+INFO:obs-service-go_modules:Extracting hugo-0.110.0.obscpio to /data/packages/home:trenn:branches:devel:languages:go/hugo/tmpbud6kezd.go_modules.service
+INFO:obs-service-go_modules:Switching to /data/packages/home:trenn:branches:devel:languages:go/hugo/tmpbud6kezd.go_modules.service
+INFO:obs-service-go_modules:Using go.mod found at /data/packages/home:trenn:branches:devel:languages:go/hugo/tmpbud6kezd.go_modules.service/hugo-0.110.0/go.mod
 INFO:obs-service-go_modules:go mod download
-go: finding cloud.google.com/go v0.39.0
-go: finding contrib.go.opencensus.io/exporter/aws v0.0.0-20181029163544-2befc13012d0
-go: finding contrib.go.opencensus.io/exporter/ocagent v0.4.12
-go: finding contrib.go.opencensus.io/exporter/stackdriver v0.11.0
-go: finding contrib.go.opencensus.io/integrations/ocsql v0.1.4
-go: finding contrib.go.opencensus.io/resource v0.0.0-20190131005048-21591786a5e0
-go: finding github.com/Azure/azure-amqp-common-go v1.1.4
-go: finding github.com/Azure/azure-pipeline-go v0.1.9
-go: finding github.com/Azure/azure-sdk-for-go v27.3.0+incompatible
-(elided: 193 additional entries)
-go: finding gopkg.in/fsnotify.v1 v1.4.7
-go: finding gopkg.in/resty.v1 v1.12.0
-go: finding gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7
-go: finding gopkg.in/yaml.v2 v2.2.2
-go: finding honnef.co/go/tools v0.0.0-20190106161140-3f1c8253044a
-go: finding pack.ag/amqp v0.11.0
-INFO:obs-service-go_modules:go mod verify
-INFO:obs-service-go_modules:all modules verified
 INFO:obs-service-go_modules:go mod vendor
+INFO:obs-service-go_modules:go mod verify
 INFO:obs-service-go_modules:Vendor go.mod dependencies to vendor.tar.gz
+INFO:obs-service-go_modules:Cleaning up working dir /data/packages/home:trenn:branches:devel:languages:go/hugo/tmpbud6kezd.go_modules.service/hugo-0.110.0
 
 $ ls -1
-hugo-0.57.2.tar.gz
+hugo
+hugo-0.110.0.obscpio
 hugo.changes
+hugo.obsinfo
 hugo.spec
 _service
 _servicedata
@@ -222,7 +217,7 @@ can be used together to automate Go application source archive handling and supp
 
 ```
 <services>
-  <service name="tar_scm" mode="disabled">
+  <service name="obs_scm" mode="localonly">
     <param name="url">git://github.com/gohugoio/hugo.git</param>
     <param name="scm">git</param>
     <param name="exclude">.git</param>
@@ -231,14 +226,15 @@ can be used together to automate Go application source archive handling and supp
     <param name="changesgenerate">enable</param>
     <param name="versionrewrite-pattern">v(.*)</param>
   </service>
-  <service name="set_version" mode="disabled">
+  <service name="set_version" mode="localonly">
     <param name="basename">hugo</param>
   </service>
-  <service name="recompress" mode="disabled">
+  <service name="tar" mode="buildtime"/>
+  <service name="recompress" mode="buildtime">
     <param name="file">*.tar</param>
     <param name="compression">gz</param>
   </service>
-  <service name="go_modules" mode="disabled">
+  <service name="go_modules" mode="localonly">
   </service>
 </services>
 ```
@@ -249,7 +245,7 @@ Persistent state for changelog generation is stored in `_servicedata`.
 
 Until such time as `obs-service-go_modules` is available on
 [OBS](https://build.opensuse.org), `vendor.tar.gz` should
-be committed along with the Go application release tarball.
+be committed along with the Go application (obsinfo and obscpio file).
 
 ## openSUSE RPM packages built using `obs-service-go_modules`
 
@@ -278,7 +274,7 @@ in the event eliminating the `python-libarchive-c` dependency is desirable.
 ### Q: Does `vendor.tar.gz` need to be committed to OBS package?
 
 A: Currently yes.
-As long as  `obs-service-go_modules` is run locally via `osc service disabledrun`,
+As long as  `obs-service-go_modules` is run locally via `osc service localrun`,
 then `vendor.tar.gz` should be committed and referenced as an additional `Source:`.
 If and when `obs-service-go_modules` is available on
 [OBS](https://build.opensuse.org),
@@ -301,7 +297,7 @@ These characteristics should be quite favorable for distribution packagers.
 
 ### Q: Does `obs-service-go_modules` cache Go module downloads to save time and bandwidth?
 
-A: Yes. For local use with `osc service disabledrun`,
+A: Yes. For local use with `osc service localrun`,
 `obs-service-go_modules` uses the standard module cache `~/go/pkg/mod`.
 Subsequent runs of `obs-service-go_modules` with a populated cache will finish in less time.
 
