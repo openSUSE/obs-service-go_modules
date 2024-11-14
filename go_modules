@@ -119,20 +119,26 @@ def archive_autodetect():
     log.info("Autodetecting archive since no archive param provided in _service")
     specs = sorted(Path.cwd().glob("*.spec"), reverse=True)
     if not specs:
-        log.error(f"No spec file found in {Path.cwd()}")
+        log.warning(f"No spec file found in {Path.cwd()}")
+    dscs = sorted(Path.cwd().glob("*.dsc"), reverse=True)
+    if not dscs:
+        log.warning(f"No dsc file found in {Path.cwd()}")
+    if not specs and not dscs:
+        log.error(f"Archive autodetection found no spec or dsc file under {Path.cwd()}")
         exit(1)
+    else:
+        pkgfile = specs[0] if specs else dscs[0]
 
     archive = None
-    spec = specs[0]
     c_exts = ("gz", "xz", "zst", "lz", "bz2")
     for pattern in (
-        [f"{spec.stem}*.tar.{c_ext}" for c_ext in c_exts]
-        + [f"{spec.stem}*.obscpio"]
-        + [f"_service:*:{spec.stem}*tar.{c_ext}" for c_ext in c_exts]
-        + [f"_service:*:{spec.stem}*obscpio"]
+        [f"{pkgfile.stem}*.tar.{c_ext}" for c_ext in c_exts]
+        + [f"{pkgfile.stem}*.obscpio"]
+        + [f"_service:*:{pkgfile.stem}*tar.{c_ext}" for c_ext in c_exts]
+        + [f"_service:*:{pkgfile.stem}*obscpio"]
     ):
         log.debug(f"Trying to find archive name with pattern {pattern}")
-        matches = sorted(spec.parent.glob(pattern), reverse=True)
+        matches = sorted(pkgfile.parent.glob(pattern), reverse=True)
 
         if matches:
             archive = matches[0]
@@ -147,17 +153,17 @@ def archive_autodetect():
     # is a substring of detected archive filename
     # Warn if there is disagreement between the versions.
     pattern = re.compile(r"^Version:\s+([\S]+)$", re.IGNORECASE)
-    with spec.open(encoding="utf-8") as f:
+    with pkgfile.open(encoding="utf-8") as f:
         for line in f:
             versionmatch = pattern.match(line)
             if versionmatch:
                 version = versionmatch.groups(0)[0]
         if not version:
-            log.warning(f"Version not found in {spec.name}")
+            log.warning(f"Version not found in {pkgfile.name}")
         else:
             if not (version in archive.name):
                 log.warning(
-                    f"Version {version} in {spec.name} does not match {archive.name}"
+                    f"Version {version} in {pkgfile.name} does not match {archive.name}"
                 )
     return str(archive.name)  # return string not PosixPath
 
