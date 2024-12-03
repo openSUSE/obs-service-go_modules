@@ -260,7 +260,7 @@ def main():
             log.error(f"File go.mod not found under {os.path.join(tempdir, basename)}")
             exit(1)
 
-        if args.strategy == "vendor":
+        if args.strategy in ["vendor", "download"]:
             # go subcommand sequence:
             # - go mod download
             #   (is sensitive to invalid module versions, try and log warn if fails)
@@ -283,10 +283,11 @@ def main():
                     log.error("go mod download failed")
                     exit(1)
 
-            cp = cmd_go_mod("vendor", go_mod_dir)
-            if cp.returncode:
-                log.error("go mod vendor failed")
-                exit(1)
+            if args.strategy == "vendor":
+                cp = cmd_go_mod("vendor", go_mod_dir)
+                if cp.returncode:
+                    log.error("go mod vendor failed")
+                    exit(1)
 
             cp = cmd_go_mod("verify", go_mod_dir)
             if cp.returncode:
