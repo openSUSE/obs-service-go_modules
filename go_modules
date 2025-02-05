@@ -27,6 +27,7 @@ vendor/ directory populated by go mod vendor.
 See README.md for additional documentation.
 """
 
+import difflib
 import logging
 import argparse
 import re
@@ -34,6 +35,11 @@ import libarchive
 import os
 import sys
 import tempfile
+import yaml
+import glob
+import subprocess
+from osc import conf
+from osc import core
 
 from pathlib import Path
 from subprocess import run
@@ -44,6 +50,7 @@ description = __doc__
 
 DEFAULT_COMPRESSION = "gz"
 DEFAULT_VENDOR_STEM = "vendor"
+DEFAULT_MOD_DIFF = "go-modules.patch"
 
 
 def get_archive_parameters(args):
@@ -209,7 +216,22 @@ def sanitize_subdir(basedir, subdir):
     exit(1)
 
 
+def match_comment(string, changesfile):
+    lines = string.splitlines()
+    index = 0
+    with open(changesfile) as f:
+        for line_f in f.readlines():
+            if lines[index] in line_f:
+                index += 1
+                if index == len(lines):
+                    return True
+            else:
+                index = 0
+    return False
+
+
 def main():
+    mod_updates = {}
     log.info(f"Running OBS Source Service: {app_name}")
 
     parser = argparse.ArgumentParser(
@@ -222,6 +244,9 @@ def main():
     parser.add_argument("--basename")
     parser.add_argument("--vendorname", default=DEFAULT_VENDOR_STEM)
     parser.add_argument("--subdir")
+    parser.add_argument("--modupdates")
+    parser.add_argument("--moddiff", default=DEFAULT_MOD_DIFF)
+    parser.add_argument("--changesfile", action="append")
     args = parser.parse_args()
 
     outdir = args.outdir
@@ -238,6 +263,16 @@ def main():
         archive = archive_autodetect()
     log.info(f"Using archive {archive}")
 
+    if args.modupdates:
+        modupdatepath = sanitize_subdir(
+            os.getcwd(), os.path.join(os.getcwd(), args.modupdates)
+        )
+        if os.path.exists(modupdatepath):
+            with open(modupdatepath, "r") as f:
+                mod_updates = yaml.safe_load(f)
+
+        moddiff = sanitize_subdir(outdir, os.path.join(outdir, args.moddiff))
+
     with tempfile.TemporaryDirectory() as tempdir:
         extract(archive, tempdir)
 
@@ -247,19 +282,93 @@ def main():
             or basename_from_archive_name(archive)
         )
         if subdir:
-            go_mod_path = sanitize_subdir(
-                tempdir, os.path.join(tempdir, basename, subdir, "go.mod")
-            )
+            basedir = os.path.join(basename, subdir)
         else:
-            go_mod_path = sanitize_subdir(
-                tempdir, os.path.join(tempdir, basename, "go.mod")
-            )
+            basedir = basename
+        go_mod_path = sanitize_subdir(tempdir, os.path.join(tempdir, basedir, "go.mod"))
         if go_mod_path and os.path.exists(go_mod_path):
             go_mod_dir = os.path.dirname(go_mod_path)
             log.info(f"Using go.mod found at {go_mod_path}")
         else:
             log.error(f"File go.mod not found under {os.path.join(tempdir, basename)}")
             exit(1)
+
+        if (
+            mod_updates
+            and "go_module" in mod_updates
+            and "module_updates" in mod_updates["go_module"]
+        ):
+            new_comments = []
+            flines = {}
+            if args.changesfile:
+                changesfiles = args.changesfile
+            else:
+                changesfiles = glob.glob("./*.changes")
+            log.info(f"Found changesfiles: {changesfiles}")
+            for _cf in changesfiles:
+                new_comments.append([])
+            for file in ["go.mod", "go.sum"]:
+                with open(os.path.join(go_mod_dir, file), "r") as f:
+                    flines[file] = f.readlines()
+            if not mod_updates["go_module"]["module_updates"] is None:
+                for modupdate in mod_updates["go_module"]["module_updates"]:
+                    log.info(f"Processing: `go get \"{modupdate['uri']}\"`")
+                    if (
+                        re.fullmatch(
+                            r"[a-zA-Z0-9\~\-_.:/]+(@[a-zA-Z0-9\+\~\-_.:/]+){0,1}",
+                            modupdate["uri"],
+                        )
+                        is None
+                    ):
+                        log.error(
+                            f"uri: {modupdate['uri']} contains invalid characters"
+                        )
+                        exit(1)
+                    if sys.version_info >= (3, 7):
+                        cp = run(
+                            ["go", "get", f"{modupdate['uri']}"],
+                            cwd=go_mod_dir,
+                            capture_output=True,
+                            text=True,
+                        )
+                    else:
+                        cp = run(["go", "get", f"{modupdate['uri']}"], cwd=go_mod_dir)
+                    if cp.returncode:
+                        if cp.stderr is not None:
+                            log.error(cp.stderr.strip())
+                            exit(1)
+                    s_tmp = modupdate["uri"].split("@", 1)
+                    if len(s_tmp) > 1:
+                        comment = comment_0 = f"Update {s_tmp[0]} to version {s_tmp[1]}"
+                    else:
+                        comment = comment_0 = f"Update {s_tmp[0]}"
+                    if "comment" in modupdate:
+                        comment += ":\n" + modupdate["comment"]
+                    for i in range(len(changesfiles)):
+                        cf = changesfiles[i]
+                        nc = new_comments[i]
+                        if not match_comment(comment_0, cf):
+                            nc.append(comment)
+                            log.info(f"adding comment: {comment}")
+                        else:
+                            log.info(f"comment {comment_0} matched")
+                # Sanitze after updating modules
+                cp = cmd_go_mod("tidy", go_mod_dir)
+                if cp.returncode:
+                    log.error("go mod tidy failed")
+                    exit(1)
+
+            with open(moddiff, "w") as diff_f:
+                for file in ["go.mod", "go.sum"]:
+                    with open(os.path.join(go_mod_dir, file), "r") as f:
+                        tlines = f.readlines()
+                        diff = difflib.unified_diff(
+                            flines[file],
+                            tlines,
+                            os.path.join("a", file),
+                            os.path.join("b", file),
+                        )
+                        diff_f.writelines(diff)
 
         if args.strategy == "vendor":
             # go subcommand sequence:
@@ -323,6 +432,35 @@ def main():
                     new_archive.add_files(vendor_dir)
 
             os.chdir(cwd)
+
+    if args.modupdates:
+        for i in range(len(changesfiles)):
+            cf = changesfiles[i]
+            nc = new_comments[i]
+            if nc:
+                if args.moddiff:
+                    nc.append(f"Update {args.moddiff}.")
+                cmd_list = [conf.Options()["vc-cmd"]]
+                if core.which(cmd_list[0]) is None:
+                    log.error(f"vc ('{cmd_list[0]}') command not found")
+                    exit(1)
+                cmd_list.append("-m")
+                argstr = ""
+                prefix = ""
+                argstr = "Update vendor module dependencies:"
+                for comment in nc:
+                    argstr += "\n"
+                    log.info(f"Write comment {comment}")
+                    prefix = "  * "
+                    for line in comment.splitlines(keepends=True):
+                        argstr += prefix + line
+                        prefix = "    "
+                log.info(f"adding comment: {argstr} to {cf}")
+                cmd_list.append(argstr)
+                cmd_list.append(cf)
+                vc = subprocess.Popen(cmd_list)
+                vc.wait()
+                log.info(f"{cmd_list[0]} returned {vc.returncode}")
 
 
 if __name__ == "__main__":
