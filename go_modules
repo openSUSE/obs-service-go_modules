@@ -195,7 +195,8 @@ def cmd_go_mod(cmd, moddir):
     else:
         cp = run(["go", "mod", cmd], cwd=moddir)
     if cp.returncode:
-        log.error(cp.stderr.strip())
+        if cp.stderr is not None:
+            log.error(cp.stderr.strip())
     return cp
 
 
