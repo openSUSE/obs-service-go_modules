@@ -57,7 +57,7 @@ Create a `_service` file containing:
 
 ```
 <services>
-  <service name="go_modules" mode="disabled">
+  <service name="go_modules" mode="manual">
   </service>
 </services>
 ```
@@ -66,7 +66,7 @@ The archive name can alternatively be specified using service parameter `archive
 
 ```
 <services>
-  <service name="go_modules" mode="disabled">
+  <service name="go_modules" mode="manual">
   <param name="archive">app-0.1.0.tar.xz</param>
   </service>
 </services>
@@ -75,13 +75,13 @@ The archive name can alternatively be specified using service parameter `archive
 Run `osc` command locally:
 
 ```
-osc service disabledrun
+osc service manualrun
 ```
 
-In case you previously ran the command, there might be a git clone of the app repository. To avoid errors, remove this directory before calling the `osc service disabledrun` command:
+In case you previously ran the command, there might be a git clone of the app repository. To avoid errors, remove this directory before calling the `osc service manualrun` command:
 
 ```
-rm -rf app; osc service disabledrun
+rm -rf app; osc service manualrun
 ```
 
 See [Example](#example) below for typical output with a complete `_service` file.
@@ -121,9 +121,9 @@ Decompression timings are closely matched among `gz`, `xz`, and `zstd` compressi
 OBS Source Services can run in one of several modes as shown in
 [OBS Documentation: Using Source Services: Modes of Services](https://openbuildservice.org/help/manuals/obs-user-guide/cha.obs.source_service.html#sec.obs.sserv.mode).
 
-Currently the recommended mode is `disabled` (aliased as `manual`) which implies:
+Currently the recommended mode is `manual` which implies:
 
-- The service is run locally via explicit CLI call `osc service disabledrun`
+- The service is run locally via explicit CLI call `osc service manualrun`
 
 - `obs-service-go_modules` and its dependencies
   `python3`, `libarchive` and `python3-libarchive-c`
@@ -175,7 +175,7 @@ hugo.spec
 _service
 _servicedata
 
-$ osc service disabledrun
+$ osc service manualrun
 INFO:obs-service-go_modules:Autodetecting archive since no archive param provided in _service
 INFO:obs-service-go_modules:Archive autodetected at /path/to/prj/pkg/hugo-0.57.2.tar.gz
 INFO:obs-service-go_modules:Using archive hugo-0.57.2.tar.gz
@@ -222,7 +222,7 @@ can be used together to automate Go application source archive handling and supp
 
 ```
 <services>
-  <service name="tar_scm" mode="disabled">
+  <service name="tar_scm" mode="manual">
     <param name="url">git://github.com/gohugoio/hugo.git</param>
     <param name="scm">git</param>
     <param name="exclude">.git</param>
@@ -231,14 +231,14 @@ can be used together to automate Go application source archive handling and supp
     <param name="changesgenerate">enable</param>
     <param name="versionrewrite-pattern">v(.*)</param>
   </service>
-  <service name="set_version" mode="disabled">
+  <service name="set_version" mode="manual">
     <param name="basename">hugo</param>
   </service>
-  <service name="recompress" mode="disabled">
+  <service name="recompress" mode="manual">
     <param name="file">*.tar</param>
     <param name="compression">gz</param>
   </service>
-  <service name="go_modules" mode="disabled">
+  <service name="go_modules" mode="manual">
   </service>
 </services>
 ```
@@ -278,7 +278,7 @@ in the event eliminating the `python-libarchive-c` dependency is desirable.
 ### Q: Does `vendor.tar.gz` need to be committed to OBS package?
 
 A: Currently yes.
-As long as  `obs-service-go_modules` is run locally via `osc service disabledrun`,
+As long as  `obs-service-go_modules` is run locally via `osc service manualrun`,
 then `vendor.tar.gz` should be committed and referenced as an additional `Source:`.
 If and when `obs-service-go_modules` is available on
 [OBS](https://build.opensuse.org),
@@ -301,7 +301,7 @@ These characteristics should be quite favorable for distribution packagers.
 
 ### Q: Does `obs-service-go_modules` cache Go module downloads to save time and bandwidth?
 
-A: Yes. For local use with `osc service disabledrun`,
+A: Yes. For local use with `osc service manualrun`,
 `obs-service-go_modules` uses the standard module cache `~/go/pkg/mod`.
 Subsequent runs of `obs-service-go_modules` with a populated cache will finish in less time.
 
