@@ -115,6 +115,7 @@ def archive_autodetect():
     - .tar.lz
     - .tar.xz
     - .tar.zst
+    - .obscpio
     """
     log.info("Autodetecting archive since no archive param provided in _service")
     specs = sorted(Path.cwd().glob("*.spec"), reverse=True)
@@ -227,7 +228,6 @@ def main():
     subdir = args.subdir
 
     archive_args = get_archive_parameters(args)
-    vendor_tarname = f"{archive_args['vendorname']}.{archive_args['ext']}"
     if args.archive:
         archive_matches = sorted(Path.cwd().glob(args.archive), reverse=True)
         if not archive_matches:
@@ -294,6 +294,7 @@ def main():
                 log.error("go mod verify failed")
                 exit(1)
 
+            vendor_tarname = f"{archive_args['vendorname']}.{archive_args['ext']}"
             log.info(f"Vendor go.mod dependencies to {vendor_tarname}")
             vendor_tarfile = os.path.join(outdir, vendor_tarname)
             cwd = os.getcwd()
