@@ -51,7 +51,7 @@ Presently it is assumed the Go application source is distributed as a compressed
 The compression type can be specified using the `compression` parameter,
 and defaults to `gz` (gzip).
 `obs-service-go_modules` will autodetect tarball archives of the form `app-0.1.0.tar.gz`,
-where the RPM packaging uses spec file `app.spec` sharing the base name `app`.
+where the RPM packaging uses spec file `app.spec` or when the DEB packaging uses dsc file `app.dsc` sharing the base name `app`.
 
 Create a `_service` file containing:
 
