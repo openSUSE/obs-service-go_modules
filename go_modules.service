@@ -19,4 +19,10 @@
   <parameter name="vendorname">
     <description>Specify the name for the generated vendor tarball. Default: vendor</description>
   </parameter>
+  <parameter name="modupdates">
+    <description>YAML file listing module updates. Default: none</description>
+  </parameter>
+  <parameter name="moddiff">
+    <description>Name of the patch for go.mod/sum to write to outdir. Default: go-module.patch</description>
+  </parameter>
 </service>
