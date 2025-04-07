@@ -32,6 +32,7 @@ import argparse
 import re
 import libarchive
 import os
+import shutil
 import sys
 import tempfile
 
@@ -81,11 +82,14 @@ def get_archive_parameters(args):
 
 
 def basename_from_archive_name(archive_name):
-    basename = re.sub(
-        r"^(?P<service_prefix>_service:[^:]+:)?(?P<basename>.*)\.(?P<extension>obscpio|tar\.[^\.]+)$",
-        r"\g<basename>",
-        archive_name,
-    )
+    if os.path.isdir(archive_name):
+        basename = archive_name
+    else:
+        basename = re.sub(
+            r"^(?P<service_prefix>_service:[^:]+:)?(?P<basename>.*)\.(?P<extension>obscpio|tar\.[^\.]+)$",
+            r"\g<basename>",
+            archive_name,
+        )
     if basename:
         log.info(f"Detected basename {basename} from archive name")
     return basename
@@ -93,14 +97,17 @@ def basename_from_archive_name(archive_name):
 
 def basename_from_archive(archive_name):
     paths = []
-    with libarchive.file_reader(archive_name) as archive:
-        for entry in archive:
-            if entry.isdir and ".git" not in entry.pathname:
-                paths.append(entry.name)
-        try:
-            basename = os.path.commonpath(paths)
-        except ValueError:
-            return
+    try:
+        with libarchive.file_reader(archive_name) as archive:
+            for entry in archive:
+                if entry.isdir and ".git" not in entry.pathname:
+                    paths.append(entry.name)
+            try:
+                basename = os.path.commonpath(paths)
+            except ValueError:
+                return
+    except libarchive.exception.ArchiveError:
+        return
     log.info(f"Detected basename {basename} from archive")
     return basename
 
@@ -115,6 +122,7 @@ def archive_autodetect():
     - .tar.lz
     - .tar.xz
     - .tar.zst
+    Returns str with filename of the archive or subdirectory
     """
     log.info("Autodetecting archive since no archive param provided in _service")
     specs = sorted(Path.cwd().glob("*.spec"), reverse=True)
@@ -126,7 +134,8 @@ def archive_autodetect():
     spec = specs[0]
     c_exts = ("gz", "xz", "zst", "lz", "bz2")
     for pattern in (
-        [f"{spec.stem}*.tar.{c_ext}" for c_ext in c_exts]
+        [spec.stem]
+        + [f"{spec.stem}*.tar.{c_ext}" for c_ext in c_exts]
         + [f"{spec.stem}*.obscpio"]
         + [f"_service:*:{spec.stem}*tar.{c_ext}" for c_ext in c_exts]
         + [f"_service:*:{spec.stem}*obscpio"]
@@ -142,23 +151,25 @@ def archive_autodetect():
         log.error("Archive autodetection found no matching archive")
         exit(1)
 
-    log.info(f"Archive autodetected at {archive}")
-    # Check that app.spec Version: directive value
-    # is a substring of detected archive filename
-    # Warn if there is disagreement between the versions.
-    pattern = re.compile(r"^Version:\s+([\S]+)$", re.IGNORECASE)
-    with spec.open(encoding="utf-8") as f:
-        for line in f:
-            versionmatch = pattern.match(line)
-            if versionmatch:
-                version = versionmatch.groups(0)[0]
-        if not version:
-            log.warning(f"Version not found in {spec.name}")
-        else:
-            if not (version in archive.name):
-                log.warning(
-                    f"Version {version} in {spec.name} does not match {archive.name}"
-                )
+    log.info(f"Archive autodetected at {archive} ({type(archive)})")
+
+    if archive.name != spec.stem:
+        # Check that app.spec Version: directive value
+        # is a substring of detected archive filename
+        # Warn if there is disagreement between the versions.
+        pattern = re.compile(r"^Version:\s+([\S]+)$", re.IGNORECASE)
+        with spec.open(encoding="utf-8") as f:
+            for line in f:
+                versionmatch = pattern.match(line)
+                if versionmatch:
+                    version = versionmatch.groups(0)[0]
+            if not version:
+                log.warning(f"Version not found in {spec.name}")
+            else:
+                if not (version in archive.name):
+                    log.warning(
+                        f"Version {version} in {spec.name} does not match {archive.name}"
+                    )
     return str(archive.name)  # return string not PosixPath
 
 
@@ -238,7 +249,10 @@ def main():
     log.info(f"Using archive {archive}")
 
     with tempfile.TemporaryDirectory() as tempdir:
-        extract(archive, tempdir)
+        if os.path.isdir(archive):
+            shutil.copytree(archive, os.path.join(tempdir, archive))
+        else:
+            extract(archive, tempdir)
 
         basename = (
             args.basename
