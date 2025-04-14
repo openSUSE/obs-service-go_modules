@@ -231,6 +231,8 @@ def main():
     parser.add_argument("--basename")
     parser.add_argument("--vendorname", default=DEFAULT_VENDOR_STEM)
     parser.add_argument("--subdir")
+    parser.add_argument("--goproxy")
+    parser.add_argument("--goprivate")
     args = parser.parse_args()
 
     outdir = args.outdir
@@ -285,6 +287,12 @@ def main():
             #   (also downloads but use separate steps for visibility in OBS environment)
             # - go mod verify
             #   (validates checksums)
+
+            os.environ["GOMODCACHE"] = "/srv/obs/service/gomodcache"
+            if args.goproxy:
+                os.environ["GOPROXY"] = args.goproxy
+            if args.goprivate:
+                os.environ["GONOSUMDB"] = args.goprivate
 
             # return value cp is type subprocess.CompletedProcess
             cp = cmd_go_mod("download", go_mod_dir)
