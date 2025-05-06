@@ -214,9 +214,8 @@ def sanitize_subdir(basedir, subdir):
     ret = os.path.normpath(subdir)
     if basedir == os.path.commonpath([basedir, ret]):
         return ret
-    log.error("Invalid path: {ret} not subdir of {basedir}")
+    log.error(f"Invalid path: {ret} not subdir of {basedir}")
     exit(1)
-
 
 def main():
     log.info(f"Running OBS Source Service: {app_name}")
@@ -262,6 +261,7 @@ def main():
             or basename_from_archive(archive)
             or basename_from_archive_name(archive)
         )
+        basename = basename.split("/")[-1]
         if subdir:
             go_mod_path = sanitize_subdir(
                 tempdir, os.path.join(tempdir, basename, subdir, "go.mod")
