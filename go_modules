@@ -123,6 +123,7 @@ def archive_autodetect():
     - .tar.xz
     - .tar.zst
     - .obscpio
+    Returns str with filename of the archive or subdirectory
     """
     log.info("Autodetecting archive since no archive param provided in _service")
     specs = sorted(Path.cwd().glob("*.spec"), reverse=True)
