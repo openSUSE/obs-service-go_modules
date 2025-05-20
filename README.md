@@ -44,6 +44,25 @@ The archive is generated in the rpm package directory, and can be committed to
 for [openSUSE](https://www.opensuse.org),
 [SUSE](https://www.suse.com), and numerous other distributions.
 
+Upon request, `obs-service-go_modules` will update module versions in the
+`go.mod` file before downloading the vendor modules, regenerate `go.sum`
+file, update the `.changes` file by adding any missing version updates and
+create a patch file for these that can be applied when building the package.
+This feature makes it easy to apply security fixes by updating the vendor
+module list before downloading the modules.
+
+Taking the version information from a YAML file `obs-service-go_modules` will
+pass every version update to `go get`:
+
+```
+go get <module>@<version>
+```
+
+one-by-one to the unpacked source package before downloading the vendor
+modules. This command will update the package entry and recalculate the
+checksum.
+
+
 ## Usage for packagers
 
 Presently it is assumed the Go application source is distributed as a compressed tarball named
@@ -115,6 +134,102 @@ The above are an average of five runs on Intel i7-6820HQ CPU.
 The `zstd` format has a clear advantage in speed with reasonable compression ratio,
 and is likely to become the default compression method in a future release.
 Decompression timings are closely matched among `gz`, `xz`, and `zstd` compression methods.
+
+## Update Vendor Module Versions
+
+Optionally, `obs-service-go_modules` will update module versions in `go.mod`,
+recreate `go.sum`, update the `*.changes` file with any change that's missing
+and create a patch that can be applied when building the package. The version
+changes to be applied need to be specified in a YAML file.
+
+### Service Parameters
+
+To do so, specify the name of the YAML file using the service parameter
+`modupdates`. The default is `none` in which case no version update will be
+performed. You can specify the name of the patch file to generate using the
+service parameter `moddiff`. The default is `go-modules.patch`. If multiple
+`.changes` files exist, missing comments will be added to all files. To apply
+this update to a single `.changes` file, you may use the parameter
+`changesfile`. This parameter can be provided multiple times.
+
+```
+<services>
+  <service name="go_modules" mode="disabled">
+    <param name="modupdates">go-module-updates.yaml</param>
+    <param name="moddiff">go-module.patch</param>
+    <param name="changesfile">mypackage.changes</param>
+  </service>
+</services>
+```
+
+### YAML File
+
+The YAML file has the following format:
+
+```
+go_module:
+       module_updates:
+       - uri: <module>@<version>
+         comment: <comment>
+```
+
+The module information is represented as a list of associative arrays where
+each array represents a single change so multiple changes can be applied. The
+value to the `uri:` key in each array represents the module/version
+information that is passed to `go get` verbatim.
+
+The optional `comment:` key represents additional information that will help
+to determine the purpose of the version update which will be used to generate
+an entry for the `.changes` file. If no comment is specified, a default comment
+will be used.
+
+### Example
+
+Using the [apptainer](https://github.com/apptainer/apptainer) HPC container
+platform as an example to demonstrate module version updates the `_service`
+file:
+
+```
+<services>
+  <service name="go_modules" mode="disabled">
+  <param name="modupdates">go-module-updates.yaml</param>
+  <param name="moddiff">go-module.patch</param>
+  </service>
+</services>
+
+```
+
+together with the YAML file `go-module-updates.yaml` (as specified in the
+`_service` file):
+
+```
+go_module:
+   module_updates:
+   - uri: golang.org/x/net@v0.23.0
+     comment: "This prevents an attacker from sending an arbitrary amount of\n
+http/2 header data CVE-2023-45288 (bnc#1236527)."
+```
+
+produce:
+1. a file `go-module.patch`
+2. an entry in the file `apptainer.changes`:
+
+```
+-------------------------------------------------------------------
+Wed Jan 29 09:47:49 UTC 2025 - Egbert Eich <eich@suse.com>
+
+- Update vendor module dependencies:
+  * Update golang.org/x/net to v0.23:
+    This prevents an attacker from sending an arbitrary amount of
+	http/2 header data CVE-2023-45288 (bnc#1236527).
+  * Update go-module.patch.
+```
+
+3. a `vendor.tar.gz` file with updated vendor modules.
+
+Note, that the `moddiff` parameter in the service file is set to the default
+value and thus could be omitted.
+
 
 ## OBS Source Service Build Mode support
 
