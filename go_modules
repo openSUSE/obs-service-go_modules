@@ -429,9 +429,13 @@ def main():
                     new_archive.add_files(
                         vendor_dir, mtime=mtime, ctime=mtime, atime=mtime
                     )
-                except TypeError:
+                except (
+                    TypeError
+                ):  # If using old libarchive fallback to old non reproducible behavior
+                    log.warning(
+                        "python libarchive is too old, unable to produce reproducible output"
+                    )
                     new_archive.add_files(vendor_dir)
-
             os.chdir(cwd)
 
     if args.modupdates:
