@@ -194,18 +194,20 @@ def extract(filename, outdir):
     os.chdir(cwd)
 
 
-def cmd_go_mod(cmd, moddir):
+def cmd_go_mod(subcmd, moddir):
     """Execute go mod subcommand using subprocess.run().
     Capture both stderr and stdout as text.
     Log as info or error in this function body.
     Return CompletedProcess object to caller for control flow.
     """
-    log.info(f"go mod {cmd}")
+    cmd = ["go", "mod"]
+    cmd.extend(subcmd)
+    log.info(" ".join(cmd))
     # subprocess.run() returns CompletedProcess cp
     if sys.version_info >= (3, 7):
-        cp = run(["go", "mod", cmd], cwd=moddir, capture_output=True, text=True)
+        cp = run(cmd, cwd=moddir, capture_output=True, text=True)
     else:
-        cp = run(["go", "mod", cmd], cwd=moddir)
+        cp = run(cmd, cwd=moddir)
     if cp.returncode:
         log.error(cp.stderr.strip())
     return cp
@@ -289,7 +291,7 @@ def main():
             #   (validates checksums)
 
             # return value cp is type subprocess.CompletedProcess
-            cp = cmd_go_mod("download", go_mod_dir)
+            cp = cmd_go_mod(["download"], go_mod_dir)
             if cp.returncode:
                 if "invalid version" in cp.stderr:
                     log.warning(
@@ -302,12 +304,12 @@ def main():
                     log.error("go mod download failed")
                     exit(1)
 
-            cp = cmd_go_mod("vendor", go_mod_dir)
+            cp = cmd_go_mod(["vendor"], go_mod_dir)
             if cp.returncode:
                 log.error("go mod vendor failed")
                 exit(1)
 
-            cp = cmd_go_mod("verify", go_mod_dir)
+            cp = cmd_go_mod(["verify"], go_mod_dir)
             if cp.returncode:
                 log.error("go mod verify failed")
                 exit(1)
