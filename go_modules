@@ -213,6 +213,25 @@ def cmd_go_mod(subcmd, moddir):
     return cp
 
 
+def replace_modules(replace, go_mod_dir):
+    """Replace one or more modules
+    Parameter replace is a list of strings: 'module=replacement'
+    Returns boolean indicating go.mod and go.sum are modified
+    """
+    log.info(f"Replacing {len(replace)} modules")
+    for r in replace:
+        cp = cmd_go_mod(["edit", "-replace", r], go_mod_dir)
+        if cp.returncode:
+            log.error(f"go mod edit -replace={r} failed")
+            exit(1)
+    # run go mod tidy to update go.mod and go.sum
+    cp = cmd_go_mod(["tidy"], go_mod_dir)
+    if cp.returncode:
+        log.error("go mod tidy failed")
+        exit(1)
+    return True
+
+
 def sanitize_subdir(basedir, subdir):
     ret = os.path.normpath(subdir)
     if basedir == os.path.commonpath([basedir, ret]):
@@ -234,10 +253,17 @@ def main():
     parser.add_argument("--basename")
     parser.add_argument("--vendorname", default=DEFAULT_VENDOR_STEM)
     parser.add_argument("--subdir")
+    parser.add_argument(
+        "--replace",
+        action="append",
+        help="go mod edit replace argument: 'module=replacement'. Can be used multiple times.",
+    )
     args = parser.parse_args()
 
     outdir = args.outdir
     subdir = args.subdir
+
+    replace = args.replace
 
     archive_args = get_archive_parameters(args)
     vendor_tarname = f"{archive_args['vendorname']}.{archive_args['ext']}"
@@ -280,6 +306,12 @@ def main():
         else:
             log.error(f"File go.mod not found under {os.path.join(tempdir, basename)}")
             exit(1)
+
+        modified = False  # sentinel value indicating go.mod and go.sum modification
+        if args.replace:
+            # replace one or more modules
+            # go.mod and go.sum will be modified and should be included in vendor archive
+            modified = replace_modules(replace, go_mod_dir)
 
         if args.strategy == "vendor":
             # go subcommand sequence:
@@ -338,6 +370,13 @@ def main():
                     new_archive.add_files(
                         vendor_dir, mtime=mtime, ctime=mtime, atime=mtime
                     )
+                    if modified:
+                        new_archive.add_files(
+                            "go.mod", mtime=mtime, ctime=mtime, atime=mtime
+                        )
+                        new_archive.add_files(
+                            "go.sum", mtime=mtime, ctime=mtime, atime=mtime
+                        )
                 except (
                     TypeError
                 ):  # If using old libarchive fallback to old non reproducible behavior

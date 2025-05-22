@@ -19,4 +19,7 @@
   <parameter name="vendorname">
     <description>Specify the name for the generated vendor tarball. Default: vendor</description>
   </parameter>
+  <parameter name="replace">
+    <description>Specify a module name and its replacement to be updated at vendoring time. Syntax must be a valid expression input to go mod edit -replace, e.g. github.com/go-jose/go-jose/v4=github.com/go-jose/go-jose/v4@v4.0.5. Can be used multiple times. Default: None.</description>
+  </parameter>
 </service>

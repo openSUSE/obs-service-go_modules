@@ -245,6 +245,116 @@ can be used together to automate Go application source archive handling and supp
 
 Persistent state for changelog generation is stored in `_servicedata`.
 
+## Updating dependencies during vendoring
+
+When a CVE or bug is reported for a dependency of a Go application, the best
+course of action is a pull request to the upstream project to use a newer fixed
+version of that dependency, and an accompanying tagged release. govulncheck
+output indicates the fixed version of the vulnerable dependency to use.
+
+On occasion, the upstream project may be slow to accept the update pull request
+or tag a release. If the vulnerability is severe and applicable to the packaged
+Go application, package maintainers can at their option temporarily vendor a
+newer fixed version of the dependency.
+
+In Long Term Support (LTS) scenarios, an dependency of an upstream project may
+be inactive, archived, removed, or explicitly marked EOL. In these cases it is
+appropriate to vendor a newer fixed version of dependency from a different
+repository URL or local file path.
+
+## Update a Go module with `go mod edit -replace`
+
+To replace a specific module with a newer fixed version,
+`obs-service-go_modules` supports the command
+`go mod edit -replace module=replacement`.
+This method is recommended, as the replace statement is explicitly written in
+`go.mod` and recorded in the `debug/buildinfo` metadata. Alternative methods of
+updating such as `go get` do not highlight the changed versions or the
+divergence from upstream pinned versions. Upstream projects do occasionally use
+replace statements in their pristine `go.mod` files.
+
+### Example replace to fix CVEs in dependencies
+
+Scenario: A packaged Go application has gone a long time since a tagged
+release. GitHub dependabot makes regular dependency update PRs to the upstream
+`main` branch, but no releases have been tagged. Two CVEs are detected against
+the most recent tagged release, as per `govulncheck` run in the local git clone:
+
+```
+govulncheck .
+=== Symbol Results ===
+
+Vulnerability #1: GO-2025-3485
+    DoS in go-jose Parsing in github.com/go-jose/go-jose
+  More info: https://pkg.go.dev/vuln/GO-2025-3485
+  Module: github.com/go-jose/go-jose/v3
+    Found in: github.com/go-jose/go-jose/v3@v3.0.3
+    Fixed in: github.com/go-jose/go-jose/v3@v3.0.4
+    Example traces found:
+      #1: pkg/attestation/attestation.go:145:35: attestation.signAttestation calls sign.SignerFromKeyOpts, which eventually calls jose.ParseSigned
+
+  Module: github.com/go-jose/go-jose/v4
+    Found in: github.com/go-jose/go-jose/v4@v4.0.2
+    Fixed in: github.com/go-jose/go-jose/v4@v4.0.5
+    Example traces found:
+      #1: pkg/attestation/attestation.go:145:35: attestation.signAttestation calls sign.SignerFromKeyOpts, which eventually calls jose.ParseSignedCompact
+
+Your code is affected by 1 vulnerability from 1 module.
+This scan also found 6 vulnerabilities in packages you import and 2
+vulnerabilities in modules you require, but your code doesn't appear to call
+these vulnerabilities.
+Use '-show verbose' for more details.
+```
+
+Mitigation: Add two replace entries to `_service` as indicated by the CVE report
+`fixed in` field:
+
+```
+<service name="go_modules" mode="manual">
+  <param name="replace">github.com/go-jose/go-jose/v3=github.com/go-jose/go-jose/v3@v3.0.4</param>
+  <param name="replace">github.com/go-jose/go-jose/v4=github.com/go-jose/go-jose/v4@v4.0.5</param>
+</service>
+```
+
+Next, run the source service to vendor dependencies as usual.
+
+`vendor.tar.gz` now contains the original dependencies pinned by upstream
+`go.mod`, with the addition of updates to two dependencies as shown above. To
+ensure the vendoring remains consistent, `vendor.tar.gz` also contains modified
+go.mod and go.sum lock files. These two files are the only diff against pristine
+upstream sources that will be neeeded in most uses of replace.
+
+Running govulncheck on the updated vendored dependencies shows the two CVEs have
+been cleared:
+
+```
+govulncheck .
+=== Symbol Results ===
+
+No vulnerabilities found.
+
+Your code is affected by 0 vulnerabilities.
+This scan also found 5 vulnerabilities in packages you import and 2
+vulnerabilities in modules you require, but your code doesn't appear to call
+these vulnerabilities.
+Use '-show verbose' for more details.
+```
+
+The use of `replace` can be observed in the modified `go.mod`, or the built
+binary:
+
+```
+go version -m <BINARYNAME> |grep jose
+        dep     github.com/go-jose/go-jose/v3   v3.0.3
+        =>      github.com/go-jose/go-jose/v3   v3.0.4
+        dep     github.com/go-jose/go-jose/v4   v4.0.2
+        =>      github.com/go-jose/go-jose/v4   v4.0.5
+```
+
+As soon as the Go application upstream tags a newer release, remove the replace
+parameters from `_service` to return to pristine upstream sources and receive
+further updates to the dependency.
+
 ## Transition note
 
 Until such time as `obs-service-go_modules` is available on
