@@ -22,4 +22,7 @@
   <parameter name="replace">
     <description>Specify a module name and its replacement to be updated at vendoring time. Syntax must be a valid expression input to go mod edit -replace, e.g. github.com/go-jose/go-jose/v4=github.com/go-jose/go-jose/v4@v4.0.5. Can be used multiple times. Default: None.</description>
   </parameter>
+  <parameter name="require">
+    <description>Specify a module and version to be explicitly required in go.mod. Syntax must be a valid input to go mod edit -require, e.g. github.com/go-jose/go-jose/v4@v4.0.5. Can be used multiple times. Default: None.</description>
+  </parameter>
 </service>

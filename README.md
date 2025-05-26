@@ -351,7 +351,40 @@ go version -m <BINARYNAME> |grep jose
         =>      github.com/go-jose/go-jose/v4   v4.0.5
 ```
 
-As soon as the Go application upstream tags a newer release, remove the replace
+## Pin a specific module version with `go mod edit -require`
+
+In some cases, it is useful to explicitly require a module version, without replacing it. The `go mod edit -require` command can be used to ensure a specific version of a module is recorded in `go.mod`, even if it is only indirectly required by other dependencies.
+
+This is especially useful in the following scenarios:
+
+- Pinning a minimum secure version of a module to address a known vulnerability, as identified by govulncheck
+- Ensuring consistent dependency resolution across vendoring and build environments.
+- Promoting a fixed version of an indirectly required dependency to a first-class requirement in `go.mod`.
+
+### Example
+
+You can add a require param:
+
+```
+<service name="go_modules" mode="manual">
+  <param name="require">github.com/go-jose/go-jose/v4@v4.0.5</param>
+</service>
+```
+
+The `go.mod` will contain:
+
+```
+require github.com/go-jose/go-jose/v4 v4.0.5
+```
+
+and the binary’s module info will show the pinned version.
+
+```
+go version -m <binary> | grep jose
+        dep     github.com/go-jose/go-jose/v4    v4.0.5
+```
+
+As soon as the Go application upstream tags a newer release, remove the replace and require
 parameters from `_service` to return to pristine upstream sources and receive
 further updates to the dependency.
 

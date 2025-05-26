@@ -232,6 +232,25 @@ def replace_modules(replace, go_mod_dir):
     return True
 
 
+def require_modules(require, go_mod_dir):
+    """Add require directives to go.mod for one or more modules
+    Parameter require is a list of strings: 'module@version'
+    Returns boolean indicating go.mod and go.sum are modified
+    """
+    log.info(f"Setting required versions for {len(require)} modules")
+    for r in require:
+        cp = cmd_go_mod(["edit", "-require", r], go_mod_dir)
+        if cp.returncode:
+            log.error(f"go mod edit -require={r} failed")
+            exit(1)
+    # run go mod tidy to update go.mod and go.sum
+    cp = cmd_go_mod(["tidy"], go_mod_dir)
+    if cp.returncode:
+        log.error("go mod tidy failed")
+        exit(1)
+    return True
+
+
 def sanitize_subdir(basedir, subdir):
     ret = os.path.normpath(subdir)
     if basedir == os.path.commonpath([basedir, ret]):
@@ -258,12 +277,18 @@ def main():
         action="append",
         help="go mod edit replace argument: 'module=replacement'. Can be used multiple times.",
     )
+    parser.add_argument(
+        "--require",
+        action="append",
+        help="go mod edit require argument: 'module@version'. Can be used multiple times.",
+    )
     args = parser.parse_args()
 
     outdir = args.outdir
     subdir = args.subdir
 
     replace = args.replace
+    require = args.require
 
     archive_args = get_archive_parameters(args)
     vendor_tarname = f"{archive_args['vendorname']}.{archive_args['ext']}"
@@ -312,6 +337,11 @@ def main():
             # replace one or more modules
             # go.mod and go.sum will be modified and should be included in vendor archive
             modified = replace_modules(replace, go_mod_dir)
+
+        if args.require:
+            # add require directives to go.mod for one or more modules
+            # go.mod and go.sum will be modified and should be included in vendor archive
+            modified = require_modules(require, go_mod_dir)
 
         if args.strategy == "vendor":
             # go subcommand sequence:
