@@ -33,11 +33,11 @@ import re
 import libarchive
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 
 from pathlib import Path
-from subprocess import run
 
 app_name = "obs-service-go_modules"
 
@@ -200,14 +200,35 @@ def cmd_go_mod(subcmd, moddir):
     Log as info or error in this function body.
     Return CompletedProcess object to caller for control flow.
     """
-    cmd = ["go", "mod"]
+    return cmd_go("mod", subcmd, moddir)
+
+
+def cmd_go_work(subcmd, moddir):
+    """Execute go work subcommand using subprocess.run().
+    Capture both stderr and stdout as text.
+    Log as info or error in this function body.
+    Return CompletedProcess object to caller for control flow.
+    """
+    return cmd_go("work", subcmd, moddir)
+
+
+def cmd_go_env(env_variable, moddir):
+    """Execute go env """
+    return cmd_go("env", env_variable, moddir)
+
+
+def cmd_go(cmd, subcmd, moddir):
+    """Execute go command using subprocess.run().
+    Capture both stderr and stdout as text.
+    """
+    cmd = ["go", cmd]
     cmd.extend(subcmd)
     log.info(" ".join(cmd))
     # subprocess.run() returns CompletedProcess cp
     if sys.version_info >= (3, 7):
-        cp = run(cmd, cwd=moddir, capture_output=True, text=True)
+        cp = subprocess.run(cmd, cwd=moddir, capture_output=True, text=True)
     else:
-        cp = run(cmd, cwd=moddir)
+        cp = subprocess.run(cmd, cwd=moddir, stdout=subprocess.PIPE)
     if cp.returncode:
         log.error(cp.stderr.strip())
     return cp
@@ -282,6 +303,10 @@ def main():
         action="append",
         help="go mod edit require argument: 'module@version'. Can be used multiple times.",
     )
+    parser.add_argument(
+        "--mode",
+        default="mod",
+        help="Define mode of operation: mod or workspace")
     args = parser.parse_args()
 
     outdir = args.outdir
@@ -366,10 +391,23 @@ def main():
                     log.error("go mod download failed")
                     exit(1)
 
-            cp = cmd_go_mod(["vendor"], go_mod_dir)
-            if cp.returncode:
-                log.error("go mod vendor failed")
-                exit(1)
+            if args.mode == "workspace":
+                cp = cmd_go_env(["GOWORK"], go_mod_dir)
+                if cp.returncode:
+                    log.error("go env GOWORK failed")
+                    exit(1)
+                go_work_path = cp.stdout.decode("utf-8").strip()
+                if go_work_path and os.path.exists(go_work_path):
+                    log.info(f"Using go.work found at {go_work_path}")
+                    cp = cmd_go_work(["vendor"], go_mod_dir)
+                    if cp.returncode:
+                        log.error("go work vendor failed")
+                        exit(1)
+            else:
+                cp = cmd_go_mod(["vendor"], go_mod_dir)
+                if cp.returncode:
+                    log.error("go mod vendor failed")
+                    exit(1)
 
             cp = cmd_go_mod(["verify"], go_mod_dir)
             if cp.returncode:
