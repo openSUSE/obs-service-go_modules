@@ -272,6 +272,11 @@ This method is recommended, as the replace statement is explicitly written in
 updating such as `go get` do not highlight the changed versions or the
 divergence from upstream pinned versions. Upstream projects do occasionally use
 replace statements in their pristine `go.mod` files.
+There is a risk to accidentally downgrade modules when using the `-repace`
+option - especially, if another replace option upgrades a package which
+requires a later version of a package for which also an explicity replace
+statement exists. Thus, `go_modules` will check for this and throw an error
+if this occurs.
 
 ### Example replace to fix CVEs in dependencies
 

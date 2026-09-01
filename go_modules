@@ -35,6 +35,7 @@ import os
 import shutil
 import sys
 import tempfile
+from GoModules.go_semver import compare
 
 from pathlib import Path
 from subprocess import run
@@ -232,6 +233,42 @@ def replace_modules(replace, go_mod_dir):
     return True
 
 
+def check_for_downgrades(replace, go_mod_dir):
+    log.info(f"Check for downgrades in {go_mod_dir}")
+    failed = False
+    for r in replace:
+        replace_version = r.split("@")[1].strip()
+        module = r.split("=")[0].strip()
+        cmd = ["go", "list", "-f", "{{.Version}}", "-m", module]
+        if sys.version_info >= (3, 7):
+            cp = run(cmd, cwd=go_mod_dir, capture_output=True, text=True)
+        else:
+            cp = run(cmd, cwd=go_mod_dir)
+        if cp.returncode:
+            log.error(f"cannot get version for module {module}: cp.stderr.strip()")
+            failed = True
+            continue
+        package_version = cp.stdout.strip()
+        res = compare(replace_version, package_version)
+        if res < -2:
+            if res == -12:
+                log.error(
+                    f"version strings {replace_version} and {package_version} are malformed"
+                )
+            elif res == -8:
+                log.error(f"version string {package_version} is malformed")
+            else:
+                log.error(f"version string {replace_version} is malformed")
+            failed = True
+        elif res < 0:
+            log.error(
+                f" Replacement version {replace_version} for module {module} downgrades from required version {package_version}"
+            )
+            failed = True
+    if failed:
+        exit(1)
+
+
 def require_modules(require, go_mod_dir):
     """Add require directives to go.mod for one or more modules
     Parameter require is a list of strings: 'module@version'
@@ -375,6 +412,9 @@ def main():
             if cp.returncode:
                 log.error("go mod verify failed")
                 exit(1)
+
+            if args.replace:
+                check_for_downgrades(replace, go_mod_dir)
 
             log.info(f"Vendor go.mod dependencies to {vendor_tarname}")
             vendor_tarfile = os.path.join(outdir, vendor_tarname)
