@@ -5,7 +5,7 @@
     <description>Choose the strategy this service runs in. Values: vendor. Default: vendor</description>
   </parameter>
   <parameter name="archive">
-    <description>Specify the Go application source archive that contains go.mod and go.sum. Values: app-x.y.z.tar.gz. Default: None, will use autodetection</description>
+    <description>Specify the Go application source archive that contains go.mod and go.sum. Shell globs are allowed. Files named after the generated vendor tarball (see vendorname) are never selected. Values: app-x.y.z.tar.gz. Default: None, will use autodetection</description>
   </parameter>
   <parameter name="compression">
     <description>Specify the compression method for the generated vendor tarball. When using "tar" no compression is applied. Values: gz, zst. Default: "gz".</description>
